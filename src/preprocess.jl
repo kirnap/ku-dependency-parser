@@ -132,3 +132,26 @@ function tokenbatch(words, maxlen, sos, eos, pad=eos)
     end
     return data, mask
 end
+
+
+# Gold-batch for final layer of the bilstm implementation
+function goldbatch(sentences, maxlen, wdict, unkwid, pad=unkwid)
+    B = length(sentences)
+    T = maxlen
+    data = [ Array(Int, B) for t in 1:T ]
+    mask = [ Array(Float32, B) for t in 1:T ]
+    for t in 1:T
+        for b in 1:B
+            N = length(sentences[b])
+            n = t - T + N
+            if n <= 0
+                mask[t][b] = 0
+                data[t][b] = pad
+            else
+                mask[t][b] = 1
+                data[t][b] = get(wdict, sentences[b].word[n], unkwid)
+            end
+        end
+    end
+    return data, mask
+end

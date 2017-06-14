@@ -24,3 +24,40 @@ end
 function free_KnetArray()
     gc(); Knet.knetgc(); gc()
 end
+
+
+# To fill the constant word embeddings
+function fillwvecs!(sentences, isents, wembed; GPUFEATS=false)
+    for (s, isents) in zip(sentences, isents)
+        empty!(s.wvec)
+        for w in isents
+            if GPUFEATS
+                push!(s.wvec, wembed[:, w])
+            else
+                push!(s.wvec, Array(wembed[:, w]))
+            end
+        end
+    end
+end
+
+
+# To fill the context embeddings of words in given sentences one by one
+function fillcvecs!(sentences, forw, back; GPUFEATS=false)
+    T = length(forw)
+    for i in 1:length(sentences)
+        s = sentences[i]
+        empty!(s.fvec)
+        empty!(s.bvec)
+        N = length(s)
+        for n in 1:N
+            t = T-N+n
+            if GPUFEATS #GPU
+                push!(s.fvec, forw[t][:,i])
+                push!(s.bvec, back[t][:,i])
+            else #CPU
+                push!(s.fvec, Array(forw[t][:,i]))
+                push!(s.bvec, Array(back[t][:,i]))
+            end
+        end
+    end
+end
