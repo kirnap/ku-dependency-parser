@@ -110,3 +110,6 @@ type Sentence                   # 1. ID: Word index, integer starting at 1 for e
 end
 
 Base.length(s::Sentence) = length(s.word)
+
+# add-hoc solution for parser.jl not sure whether it is need?
+typealias Corpus AbstractVector{Sentence}
