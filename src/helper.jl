@@ -63,6 +63,58 @@ function fillcvecs!(sentences, forw, back; GPUFEATS=false)
 end
 
 
+# fill both word and context embeddings
+function fillvecs!(wmodel, sentences, vocab; batchsize=128)
+
+    words, sents, maxwordlen, maxsentlen = maptoint(sentences, vocab)
+    sow = vocab.cdict[vocab.sowchar]
+    eow = vocab.cdict[vocab.eowchar]
+    paw = vocab.cdict[vocab.unkchar]
+ 
+    # word-embeddings calcutation
+    wembed = Any[]
+    free_KnetArray();
+    for i=1:batchsize:length(words)
+        j = min(i+batchsize-1,length(words))
+        wij = view(words,i:j)
+        maxij = maximum(map(length, wij))
+        cdata, cmask = tokenbatch(wij, maxij, sow, eow)
+        push!(wembed, charlstm(wmodel, cdata, cmask))
+    end
+    wembed = hcatn(wembed...)
+    fillwvecs!(sentences, sents, wembed)
+
+    sos,eos,unk = vocab.idict[vocab.sosword], vocab.idict[vocab.eosword], vocab.odict[vocab.unkword]
+    result = zeros(2)
+    free_KnetArray()
+    for i=1:batchsize:length(sents)
+        j = min(i+batchsize-1, length(sents))
+        isentij = view(sents, i:j)
+        maxij = maximum(map(length, isentij))
+        wdata, wmask = tokenbatch(isentij, maxij, sos, eos)
+        forw, back = wordlstm(wmodel, wdata, wmask, wembed)
+        sentij = view(sentences, i:j)
+        fillcvecs!(sentij, forw, back)
+        odata, omask = goldbatch(sentij, maxij, vocab.odict, unk)
+        lmloss(wmodel,odata,omask,forw,back; result=result) 
+    end
+    return exp(-result[1]/result[2])
+end
+
+
+# calculate the coverage
+function unkrate(sentences)
+    total = known = 0
+    for s in sentences
+        for w in s.word
+            total += 1
+            known += haskey(s.vocab.odict, w)
+        end
+    end
+    return (total-known,total)
+end
+
+
 # convert lm-trained file to new col-major parser style file
 function convertfile(infile, outfile)
     atr(x)=transpose(Array(x)) # LM stores in row-major Array, we use col-major Array
@@ -152,6 +204,7 @@ function writeconllu(sentences, inputfile, outputfile)
     close(out)
 end
 
+
 map2cpu(x)=(if isbits(x); x; else; map2cpu2(x); end)
 map2cpu(x::KnetArray)=Array(x)
 map2cpu(x::Tuple)=map(map2cpu,x)
@@ -181,3 +234,33 @@ initoptim{T<:Number}(::KnetArray{T},otype)=eval(parse(otype))
 initoptim{T<:Number}(::Array{T},otype)=eval(parse(otype))
 initoptim(a::Associative,otype)=Dict(k=>initoptim(v,otype) for (k,v) in a) 
 initoptim(a,otype)=map(x->initoptim(x,otype), a)
+
+macro msg(_x)
+    :(join(STDOUT,[Dates.format(now(),"HH:MM:SS"), $_x,'\n'],' '); flush(STDOUT))
+end
+
+date(x)=(join(STDOUT,[Dates.format(now(),"HH:MM:SS"), x,'\n'],' '); flush(STDOUT))
+
+
+type StopWatch;
+    tstart; nstart; ncurr; nnext;
+    StopWatch()=new(time(),0,0,1000)
+end
+
+
+function inc(s::StopWatch, n, step=1000)
+    s.ncurr += n
+    if s.ncurr >= s.nnext
+        tcurr = time()
+        dt = tcurr - s.tstart
+        dn = s.ncurr - s.nstart
+        s.tstart = tcurr
+        s.nstart = s.ncurr
+        s.nnext += step
+        return dn/dt
+    end
+end
+
+
+# (:epoch,0,:beam,1,:las,0.007938020871520395,0.013241609670749164) for randseed 4
+# (:epoch,0,:beam,1,:las,0.007938020871520395,0.013241609670749164)

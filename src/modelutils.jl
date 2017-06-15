@@ -30,6 +30,81 @@ function makewmodel(d)
 end
 
 
+# xavier initialization
+function initx(d...; ftype=Float32)
+    if gpu() >=0
+        KnetArray{ftype}(xavier(d...))
+    else
+        Array{ftype}(xavier(d...))
+    end
+end
+
+
+# random normal initialziation
+function initr(d...; ftype=Float32, GPUFEATS=false)
+    if GPUFEATS && gpu() >=0
+        KnetArray{ftype}(0.1*randn(d...))
+    else
+        Array{ftype}(0.1*randn(d...))
+    end
+end
+
+
+function makepmodel1(d; GPUFEATS=false)
+    m = ([d["postagv"],d["deprelv"],d["lcountv"],d["rcountv"],d["distancev"],d["parserv"]],
+         [d["postago"],d["deprelo"],d["lcounto"],d["rcounto"],d["distanceo"],d["parsero"]])
+
+    if gpu() >= 0
+        if GPUFEATS
+            return map2gpu(m)
+        else
+            m = map2cpu(m)
+            m[1][6] = map2gpu(m[1][6])
+            m[2][6] = map2gpu(m[2][6])
+            return m
+        end
+    else
+        return map2cpu(m)
+    end
+end
+
+
+function makepmodel2(o, s; ftype=Float32)
+    model = Any[]
+    dpostag, ddeprel, dcount = o[:embed]
+    for (k,n,d) in ((:postag,17,dpostag),(:deprel,37,ddeprel),(:lcount,10,dcount),(:rcount,10,dcount),(:distance,10,dcount))
+        push!(model, [ initr(d) for i=1:n ])
+    end
+    p = o[:arctype](s)
+    f = features([p], o[:feats], model)
+    mlpdims = (length(f), o[:hidden]..., p.nmove)
+    info("mlpdims=$mlpdims")
+    parser = Any[]
+    for i=2:length(mlpdims)
+        push!(parser, initx(mlpdims[i],mlpdims[i-1]))
+        push!(parser, initx(mlpdims[i],1))
+    end
+    push!(model,parser)
+    optim = initoptim(model,o[:optimization])
+    return model,optim
+end
+
+
+# Parser model initialization, and parameter selection
+makepmodel(d, o, s) = (haskey(d, "parserv") ? makepmodel1(d) : makepmodel2(o, s))
+postagv(m)=m[1]; deprelv(m)=m[2]; lcountv(m)=m[3]; rcountv(m)=m[4]; distancev(m)=m[5]; parserv(m)=m[6]
+
+
+function mlp(w,x; pdrop=(0,0))
+    x = dropout(x,pdrop[1])
+    for i=1:2:length(w)-2
+        x = relu(w[i]*x .+ w[i+1])
+        x = dropout(x,pdrop[2])
+    end
+    return w[end-1]*x .+ w[end]
+end
+
+
 # col-major lstm
 function lstm(weight, bias, hidden, cell, input; mask=nothing)
     gates = weight * vcat(input, hidden) .+ bias
