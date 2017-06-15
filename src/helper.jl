@@ -61,3 +61,123 @@ function fillcvecs!(sentences, forw, back; GPUFEATS=false)
         end
     end
 end
+
+
+# convert lm-trained file to new col-major parser style file
+function convertfile(infile, outfile)
+    atr(x)=transpose(Array(x)) # LM stores in row-major Array, we use col-major Array
+    d = load(infile); m = d["model"]
+    save(outfile, "cembed", atr(m[:cembed]), "forw", map(atr,m[:forw]),
+         "back",map(atr,m[:back]), "soft",map(atr,m[:soft]), "char",map(atr,m[:char]),
+         "char_vocab",d["char_vocab"], "word_vocab",d["word_vocab"], 
+         "sosword","<s>","eosword","</s>","unkword","<unk>",
+         "sowchar",'\x12',"eowchar",'\x13',"unkchar",'\x11')
+end
+
+
+# convert KnetArrays to Arrays
+function convert2cpu(infile, outfile)
+    d = load(infile)
+    jldopen(outfile, "w") do file
+        for (k,v) in d
+            write(file,k,map2cpu(v))
+        end
+    end
+end
+
+
+# save file in new format
+function savefile(file, vocab, wmodel, pmodel, optim, arctype, feats)
+    save(file,  "cembed", map2cpu(cembed(wmodel)),
+         "char", map2cpu([wchar(wmodel),bchar(wmodel)]),
+         "forw", map2cpu([wforw(wmodel),bforw(wmodel)]),
+         "back", map2cpu([wback(wmodel),bback(wmodel)]),
+         "soft", map2cpu([wsoft(wmodel),bsoft(wmodel)]),
+
+         "char_vocab",vocab.cdict, "word_vocab",vocab.odict,
+         "sosword",vocab.sosword,"eosword",vocab.eosword,"unkword",vocab.unkword,
+         "sowchar",vocab.sowchar,"eowchar",vocab.eowchar,"unkchar",vocab.unkchar,
+         "postags",vocab.postags,"deprels",vocab.deprels,
+
+         "postagv",map2cpu(postagv(pmodel)),"deprelv",map2cpu(deprelv(pmodel)),
+         "lcountv",map2cpu(lcountv(pmodel)),"rcountv",map2cpu(rcountv(pmodel)),
+         "distancev",map2cpu(distancev(pmodel)),"parserv",map2cpu(parserv(pmodel)),
+
+         "postago",map2cpu(postagv(optim)),"deprelo",map2cpu(deprelv(optim)),
+         "lcounto",map2cpu(lcountv(optim)),"rcounto",map2cpu(rcountv(optim)),
+         "distanceo",map2cpu(distancev(optim)),"parsero",map2cpu(parserv(optim)),
+    
+         "arctype",arctype,"feats",feats,
+    )
+end
+
+
+function writeconllu(sentences, inputfile, outputfile)
+    # We only replace the head and deprel fields of the input file
+    out = open(outputfile,"w")
+    v = sentences[1].vocab
+    deprels = Array(String, length(v.deprels))
+    for (k,v) in v.deprels; deprels[v]=k; end
+    s = p = nothing
+    ns = nw = nl = 0
+    for line in eachline(inputfile)
+        nl += 1
+        if ismatch(r"^\d+\t", line)
+            # info("$nl word")
+            if s == nothing
+                s = sentences[ns+1]
+                p = s.parse
+            end
+            f = split(line, '\t')
+            nw += 1
+            if f[1] != "$nw"; error(); end
+            if f[2] != s.word[nw]; error(); end
+            f[7] = string(p.head[nw])
+            f[8] = deprels[p.deprel[nw]]
+            print(out, join(f, "\t"))
+        else
+            if line == "\n"
+                # info("$nl blank")
+                if s == nothing; error(); end
+                if nw != length(s.word); error(); end
+                ns += 1; nw = 0
+                s = p = nothing
+            else
+                # info("$nl non-word")
+            end
+            print(out, line)
+        end
+    end
+    if ns != length(sentences); error(); end
+    close(out)
+end
+
+map2cpu(x)=(if isbits(x); x; else; map2cpu2(x); end)
+map2cpu(x::KnetArray)=Array(x)
+map2cpu(x::Tuple)=map(map2cpu,x)
+map2cpu(x::AbstractString)=x
+map2cpu(x::DataType)=x
+map2cpu(x::Array)=map(map2cpu,x)
+map2cpu{T<:Number}(x::Array{T})=x
+map2cpu(x::Associative)=(y=Dict();for (k,v) in x; y[k] = map2cpu(x[k]); end; y)
+map2cpu2(x)=(y=deepcopy(x); for f in fieldnames(x); setfield!(y,f,map2cpu(getfield(x,f))); end; y)
+
+map2gpu(x)=(if isbits(x); x; else; map2gpu2(x); end)
+map2gpu(x::KnetArray)=x
+map2gpu(x::AbstractString)=x
+map2gpu(x::DataType)=x
+map2gpu(x::Tuple)=map(map2gpu,x)
+map2gpu(x::Array)=map(map2gpu,x)
+map2gpu{T<:AbstractFloat}(x::Array{T})=KnetArray(x)
+map2gpu(x::Associative)=(y=Dict();for (k,v) in x; y[k] = map2gpu(x[k]); end; y)
+map2gpu2(x)=(y=deepcopy(x); for f in fieldnames(x); setfield!(y,f,map2gpu(getfield(x,f))); end; y)
+
+
+# Optimization parameters initialization
+# initoptim creates optimization parameters for each numeric weight
+# array in the model.  This should work for a model consisting of any
+# combination of tuple/array/dict.
+initoptim{T<:Number}(::KnetArray{T},otype)=eval(parse(otype))
+initoptim{T<:Number}(::Array{T},otype)=eval(parse(otype))
+initoptim(a::Associative,otype)=Dict(k=>initoptim(v,otype) for (k,v) in a) 
+initoptim(a,otype)=map(x->initoptim(x,otype), a)
