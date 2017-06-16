@@ -1,4 +1,5 @@
 using AutoGrad: getval
+
 # default feature set used in parser
 FEATS=["s1c","s1v","s1p","s1A","s1a","s1B","s1b",
        "s1rL", # "s1rc","s1rv","s1rp",
@@ -14,33 +15,8 @@ MAXWORD=32                      # truncate long words at this length. length("co
 MAXSENT=64                      # skip longer sentences during training
 MINSENT=2                       # skip shorter sentences during training
 
-function main(args="")
-    #global model, text, data, tok2int, o
-    s = ArgParseSettings()
-    s.description="Koc-University team transition based parser"
-    s.exc_handler=ArgParse.debug_handler
-    @add_arg_table s begin
-        ("--datafiles"; nargs='+'; help="Input in conllu format. If provided, use first file for training, last for dev. If single file use both for train and dev.")
-        ("--output"; help="Output parse of first datafile in conllu format to this file")
-        ("--loadfile"; help="Initialize model from file")
-        ("--savefile"; help="Save final model to file")
-        ("--bestfile"; help="Save best model to file")
-        ("--hidden"; nargs='+'; arg_type=Int; default=[2048]; help="Sizes of parser mlp hidden layers.")
-        ("--optimization"; default="Adam()"; help="Optimization algorithm and parameters.")
-        ("--seed"; arg_type=Int; default=-1; help="Random number seed.")
-        ("--otrain"; arg_type=Int; default=0; help="Epochs of oracle training.")
-        ("--btrain"; arg_type=Int; default=0; help="Epochs of beam training.")
-        ("--arctype"; help="Move set to use: ArcEager{R1,13}, ArcHybrid{R1,13}, default ArcHybridR1")
-        ("--feats"; help="Feature set to use, default $FEATS")
-        ("--batchsize"; arg_type=Int; default=16; help="Number of sequences to train on in parallel.")
-        ("--beamsize"; arg_type=Int; default=1; help="Beam size.")
-        ("--dropout"; nargs='+'; arg_type=Float64; default=[0.5,0.5]; help="Dropout probabilities. default 0.5.")
-        ("--report"; nargs='+'; arg_type=Int; default=[1]; help="choose which files to report las for, default all.")
-        ("--embed"; nargs='+'; arg_type=Int; help="embedding sizes for postag(17),deprel(37),counts(10). default 128,32,16.")
-    end
-    isa(args, AbstractString) && (args=split(args))
-    o = parse_args(args, s; as_symbols=true)
-    println(s.description)
+
+function main(o)
     println("opts=",[(k,v) for (k,v) in o]...)
 
     @msg o[:loadfile]
@@ -57,7 +33,7 @@ function main(args="")
         o[:report]=ntuple(i->o[:report][1], length(o[:datafiles]))
     end
 
-    # assign transition based Parser type
+    # assign transition based Parser type Abstraction from parser.jl
     o[:arctype] = (o[:arctype] == nothing ? get(d,"arctype",ArcHybridR1) : eval(parse(o[:arctype])))
 
     if haskey(d,"arctype") && o[:arctype] != d["arctype"]
@@ -98,7 +74,8 @@ function main(args="")
     # add-hoc savefile function
     save1(file)=(@msg file; savefile(file, vocab, wmodel, pmodel, optim, o[:arctype], o[:feats]))
 
-    
+
+    # report function that is going to be used during training
     function report(epoch,beamsize=o[:beamsize])
         las_vals = zeros(length(corpora))
         for i=1:length(corpora)
@@ -136,31 +113,48 @@ function main(args="")
         if currlas > bestlas 
             bestlas = currlas
             bestepoch = epoch
-            if o[:bestfile] != nothing; save1(o[:bestfile]); end
+            if o[:bestfile] != nothing
+                save1(o[:bestfile])
+            end
         end
         if 5 < bestepoch < epoch - 5
             break
         end
     end
 
+    # savemodel
+    if o[:savefile] != nothing
+        save1(o[:savefile])
+    end
+
+    # output parse for corpora[1]
+    if o[:output] != nothing    # TODO: parse all data files?
+        @msg o[:output]
+        if corpora[1][1].parse == nothing
+            @msg :parsing
+            beamtest(model=pmodel,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],batchsize=o[:batchsize])
+        end
+        writeconllu(corpora[1], o[:datafiles][1], o[:output])
+    end
+    @msg :done
+
 end
 
 
 function beamtest(;model=_model, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, beamsize=4, batchsize=128) # large batchsize does not slow down beamtest
-    for s in corpus; s.parse = nothing; end
+    for s in corpus
+        s.parse = nothing
+    end
+    
     sentbatches = minibatch(corpus,batchsize)
     for sentences in sentbatches
         beamloss(model, sentences, vocab, arctype, feats, beamsize; earlystop=false)
-        #print('.')
     end
-    #println()
     las(corpus)
 end
 
 
 function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=true, steps=nothing, pdrop=(0,0))
-    # global parsers,fmatrix,beamends,cscores,pscores,parsers0,beamends0,totalloss,loss,pcosts,pcosts0
-    # fillvecs!(cmodel, sentences, vocab)
     parsers = parsers0 = map(arctype, sentences)
     beamends = beamends0 = collect(1:length(parsers)) # marks end column of each beam, initially one parser per beam
     pcosts  = pcosts0  = zeros(Int, length(sentences))
@@ -178,44 +172,40 @@ function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=
             if gpu()>=0; fmatrix = KnetArray(fmatrix); end
         end
         cscores = Array(mlp(mlpmodel, fmatrix; pdrop=pdrop)) # candidate scores: nmove x nparser
-        # @show (findmax(cscores),cscores)
         cscores = cscores .+ pscores' # candidate cumulative scores
-        # @show (findmax(cscores),cscores)
         parsers,pscores,pcosts,beamends,loss = nextbeam(parsers, cscores, pcosts, beamends, beamsize; earlystop=earlystop)
         totalloss += loss
         stepcount += 1
     end
     # emptyvecs!(sentences)       # if we don't empty, gc cannot clear these vectors; empty if finetuning wvecs
-    # if earlystop; @msg ((maximum(map(length,sentences)),stepcount)); end
     if steps != nothing
         steps[1] += stepcount
         steps[2] += length(sentences[1])*2-2
     end
-    # println(stepcount)
     return totalloss / length(sentences)
 end
 
 
 function nextbeam(parsers, mscores, pcosts, beamends, beamsize; earlystop=true)
-    #global mcosts
     n = beamsize * length(beamends) + 1
     newparsers, newscores, newcosts, newbeamends, loss = Array(Any,n),Array(Int,n),Array(Int,n),Int[],0.0
     nmoves,nparsers = size(mscores)                     # mscores[m,p] is the score of move m for parser p
-    #TEST: will not have mcosts
     mcosts = Array(Any, nparsers)                       # mcosts[p][m] will be the cost vector for parser[p],move[m] if needed
     n = p0 = 0
     for p1 in beamends                                  # parsers[p0+1:p1], mscores[:,p0+1:p1] is the current beam belonging to a common sentence
         s0,s1 = 1 + nmoves*p0, nmoves*p1                # mscores[s0:s1] are the linear indices for mscores[:,p0:p1]
         nsave = n                                       # newparsers,newscores,newcosts[nsave+1:n] will the new beam for this sentence
-        #TEST: will not have ngold
         ngold = 0                                       # ngold, if nonzero, will be the index of the gold path in beam
         sorted = sortperm(getval(mscores)[s0:s1], rev=true)	
         for isorted in sorted
             linidx = isorted + s0 - 1
             (move,parent) = ind2sub(size(mscores), linidx) # find cartesian index of the next best score
             parser = parsers[parent]
-            if !moveok(parser,move); continue; end  # skip illegal move
-            #TEST: will not have mcosts
+
+            # skip illegal move
+            if !moveok(parser,move)
+                continue
+            end  
             if earlystop && !isassigned(mcosts, parent) # not every parent may have children, avoid unnecessary movecosts
                 mcosts[parent] = movecosts(parser, parser.sentence.head, parser.sentence.deprel)
             end
@@ -270,18 +260,17 @@ function nextbeam(parsers, mscores, pcosts, beamends, beamsize; earlystop=true)
 end
 
 
-function logsumexp2(a,r)
-    # z = 0; amax = a[r[1]]
-    # for i in r; z += exp(a[i]-amax); end
-    # return log(z) + amax
+function logsumexp2(a, r)
     amax = getval(a)[r[1]]
     log(sum(exp(a[r] - amax))) + amax
 end
 
 
-function goldindex(parsers,pcosts,mcosts,beamrange)
-    parent = findfirst(view(pcosts,beamrange),0)
-    if parent == 0; error("cannot find gold parent in $beamrange"); end
+function goldindex(parsers, pcosts, mcosts, beamrange)
+    parent = findfirst(view(pcosts, beamrange), 0)
+    if parent == 0
+        error("cannot find gold parent in $beamrange")
+    end
     parent += first(beamrange) - 1
     if !isassigned(mcosts, parent)
         p = parsers[parent]
@@ -295,6 +284,7 @@ function goldindex(parsers,pcosts,mcosts,beamrange)
         return sub2ind(msize,move,parent)
     end
 end
+
 
 endofparse(p)=(p.sptr == 1 && p.wptr > p.nword)
 
@@ -347,8 +337,6 @@ end
 
 
 function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, batchsize=16, maxiter=typemax(Int), pdrop=(0,0))
-    # global grads, optim, sentbatches, sentences
-    # srand(1)
     sentbatches = minibatch(corpus,batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=true)
     nsent = sum(map(length,sentbatches)); nsent0 = length(corpus)
     nword = sum(map(length,vcat(sentbatches...))); nword0 = sum(map(length,corpus))
@@ -371,8 +359,6 @@ end
 
 
 function oracleloss(pmodel, sentences, vocab, arctype, feats; losses=nothing, pdrop=(0,0))
-    # global parsers,mcosts,parserdone,fmatrix,scores,logprob,totalloss
-    # fillvecs!(cmodel, sentences, vocab)
     parsers = map(arctype, sentences)
     mcosts = Array(Cost, parsers[1].nmove)
     parserdone = falses(length(parsers))
