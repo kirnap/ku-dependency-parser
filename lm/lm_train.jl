@@ -93,6 +93,17 @@ function main(args=ARGS)
         ids = nextbatch(dstream, s, word_vocab_out, word_vocab_all, o[:batchsize]; maxlines=300, ulimit=ulimit)
         bcount += 1
     end
+    convertfile(o[:savefile], "temp.jld")
 
+end
+
+function convertfile(infile, outfile)
+    atr(x)=transpose(Array(x)) # LM stores in row-major Array, we use col-major Array
+    d = load(infile); m = d["model"]
+    save(outfile, "cembed", atr(m[:cembed]), "forw", map(atr,m[:forw]),
+         "back",map(atr,m[:back]), "soft",map(atr,m[:soft]), "char",map(atr,m[:char]),
+         "char_vocab",d["char_vocab"], "word_vocab",d["word_vocab"], 
+         "sosword","<s>","eosword","</s>","unkword","<unk>",
+         "sowchar",'\x12',"eowchar",'\x13',"unkchar",'\x11')
 end
 !isinteractive() && main(ARGS)
