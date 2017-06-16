@@ -7,9 +7,6 @@ These instructions will get you a copy of dependency parser software on your mac
 ### Prerequisites
 Entire software runs on Julia, so you need to install it from their official [download](https://julialang.org/downloads/) page. After successfully downloading Julia run the following command from terminal to install package dependencies.
 
-``` sh
-julia installer.jl
-```
 
 ### Installing
 Clone the repository to install the parser:
@@ -17,6 +14,11 @@ Clone the repository to install the parser:
 ```sh
 git clone git@github.com:kirnap/dependencyParser.git
 ```
+
+``` sh
+julia installer.jl
+```
+
 
 ### Code Structure
 Dependency parser related code is under [src](https://github.com/kirnap/dependencyParser/tree/master/src) folder and Language Model related code is under [lm](https://github.com/kirnap/dependencyParser/tree/master/lm).
