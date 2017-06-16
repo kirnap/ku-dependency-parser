@@ -36,7 +36,7 @@ cd lm
 
 If you don not raw version of .conllu formatted file run the following to obtain tokenized raw text:
 ```sh
-	udpipe --output=horizontal none --outfile texts/{}.txt *.conllu
+udpipe --output=horizontal none --outfile texts/{}.txt *.conllu
 ```
 
 Create a vocabulary from a text file that is tokenized  by UDPipe (provided by Conll17 task organizers):
@@ -45,7 +45,7 @@ julia wordcount.jl --textfile 'your text file' --countfile 'your-vocabulary-file
 ```
 Lm trainer expects the vocabulary file that does not contain frequency information, thus one can use linux tools to get rid of frequency information:
 ```sh
-	awk '{$1="";print $0}' path/to/your-vocabulary-file
+awk '{$1="";print $0}' path/to/your-vocabulary-file
 ```
 
 To train lm you need to run the following command:
