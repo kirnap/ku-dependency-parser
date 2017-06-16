@@ -2,10 +2,10 @@
 Dependency parser implementation used in [Conll17 shared task](http://universaldependencies.org/conll17/), our team Koç-University ranked 7th that can be found in [results](http://universaldependencies.org/conll17/results.html).
 
 ## Getting started 
-These instructions will get you a copy of dependency parser software on your machine.
+These instructions will get you a copy of dependency parser software on your machine. Once you installed whole system, you will have language modelling part and dependency parsing part.
 
 ### Prerequisites
-Entire software runs on Julia, so you need to install it from their official [download](https://julialang.org/downloads/) page. After downloading Julia. After successfully downloading Julia run the following command from terminal to install package dependencies.
+Entire software runs on Julia, so you need to install it from their official [download](https://julialang.org/downloads/) page. After successfully downloading Julia run the following command from terminal to install package dependencies.
 
 ``` sh
 julia installer.jl
