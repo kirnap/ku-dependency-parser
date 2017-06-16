@@ -13,11 +13,12 @@ Clone the repository to install the parser:
 
 ```sh
 git clone git@github.com:kirnap/dependencyParser.git
+julia installer.jl
+
 ```
 
-``` sh
-julia installer.jl
-```
+
+
 
 
 ### Code Structure
@@ -44,7 +45,7 @@ julia lm_train.jl --trainfile 'your text file' --vocabfile 'your output vocabfil
 #### To run dependency parser
 Go to the parent directory and run the following command:
 ```sh
-julia main.jl --load 'your pre-trained language model' --datafiles 'your_train_file.conllu' 'your_dev_file.conllu' --otrain 'number of epochs'
+julia main.jl --load '/path/to/pre-trained language model' --datafiles 'path/to/your_train_file.conllu' 'path/to/your_dev_file.conllu' --otrain 'number of epochs'
 ```
 For more detailed options you can run:
 ```sh
