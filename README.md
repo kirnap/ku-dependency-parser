@@ -37,7 +37,7 @@ Create a vocabulary from a text file that is tokenized  by UDPipe (provided by C
 ```sh
 julia wordcount.jl --textfile 'your text file' --countfile 'your vocabulary file'
 ```
-If you don not raw version of .conllu formatted file run the following to obtain tokenized run text:
+If you don not raw version of .conllu formatted file run the following to obtain tokenized raw text:
 ```sh
 	udpipe --output=horizontal none --outfile texts/{}.txt *.conllu
 ```
