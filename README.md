@@ -40,9 +40,9 @@ If you don not raw version of .conllu formatted file run the following to obtain
 udpipe --output=horizontal none --outfile texts/{}.txt *.conllu
 ```
 
-Create a vocabulary from a text file that is tokenized  by UDPipe (provided by Conll17 task organizers):
+Create a vocabulary from a text file that is tokenized  by UDPipe (provided by Conll17 task organizers), please notice that output file contains word-frequency information in given textfile:
 ```sh
-julia wordcount.jl --textfile 'your text file' --countfile 'your-vocabulary-file'
+julia wordcount.jl --textfile 'your text file' --output 'output-vocabulary-file'
 ```
 Lm trainer expects the vocabulary file that does not contain frequency information, thus one can use linux tools to get rid of frequency information:
 ```sh
@@ -54,7 +54,7 @@ To train lm you need to run the following command:
 julia lm_train.jl --trainfile 'your text file' --vocabfile 'your output vocabfile'  --wordsfile 'your input vocabfile' --savefile your_model.jld
 ```
 
-#### To run dependency parser
+#### Dependency parser
 Go to the parent directory and run the following command:
 ```sh
 julia main.jl --load '/path/to/pre-trained language model' --datafiles 'path/to/your_train_file.conllu' 'path/to/your_dev_file.conllu' --otrain 'number of epochs'
@@ -63,6 +63,9 @@ For more detailed options you can run:
 ```sh
 julia main.jl --help
 ```
+
+#### Additional help
+For more help, you are welcome to open an issuse, or directly contact to okirnap@ku.edu.tr
 
 
 

@@ -36,13 +36,13 @@ function main(args=ARGS)
     s.exc_handler = ArgParse.debug_handler
     @add_arg_table s begin
         ("--textfile"; required=true; help="Raw text file containing all the information")
-        ("--countfile"; help="Vocabcount file contains the words counting information")
+        ("--output"; help="Output count file contains the word frequency information")
         
     end
     
     isa(args, AbstractString) && (args=split(args))
     o = parse_args(args, s; as_symbols=true)
-    count_words(o[:textfile]; wfile=o[:countfile])
+    count_words(o[:textfile]; wfile=o[:output])
     
 end
 !isinteractive() && main(ARGS)
