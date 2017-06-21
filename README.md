@@ -6,7 +6,7 @@ These instructions will get you a copy of dependency parser software on your mac
 
 ### Prerequisites
 Entire software runs on Julia, so you need to install it from their official [download](https://julialang.org/downloads/) page. After successfully downloading Julia run the following command from terminal to install package dependencies.
-We use text file tokenized by [UDPipe](http://ufal.mff.cuni.cz/udpipe), please make sure that you have installed the (UDPipe) from official download page.
+We use text file tokenized by [UDPipe](http://ufal.mff.cuni.cz/udpipe), please make sure that you have installed the (UDPipe) from official download page, we use the binary version from their official [repository](https://github.com/ufal/udpipe).
 
 
 ### Installing
