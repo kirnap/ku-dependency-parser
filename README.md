@@ -20,8 +20,6 @@ julia installer.jl
 
 
 
-
-
 ### Code Structure
 Dependency parser related code is under [src](https://github.com/kirnap/dependencyParser/tree/master/src) folder and Language Model related code is under [lm](https://github.com/kirnap/dependencyParser/tree/master/lm).
 
@@ -30,7 +28,7 @@ To be able to train parser on a specific language, first you need to have pre-tr
 
 #### BiLSTM based LM
 
-Go to the directory where you download all the software and then to language model directory
+Go to the directory where you download all the software and then to language model directory, please be noticed language model training takes approximately 24 hours on Tesla K80 GPU.
 ```sh
 cd lm
 ```
