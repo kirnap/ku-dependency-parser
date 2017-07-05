@@ -1,71 +1,72 @@
 # Koç University Dependency Parser 
-Dependency parser implementation used in [Conll17 shared task](http://universaldependencies.org/conll17/), our team Koç-University ranked 7th that can be found in [results](http://universaldependencies.org/conll17/results.html).
+Dependency parser implementation used by [Koç University](https://www.ku.edu.tr) team in [Conll17 shared task](http://universaldependencies.org/conll17/). Our team ranked 7th as posted in the [results](http://universaldependencies.org/conll17/results.html).
 
 ## Getting started 
-These instructions will get you a copy of dependency parser software on your machine. Once you installed whole system, you will have language modelling part and dependency parsing part. Most updated version can be found in [here](https://github.com/kirnap/dependencyParser)
+This document will guide you to get a working copy of dependency parser software on your machine. The system has two parts; language modelling and dependency parsing. Most updated version of source can be found on [the official repo](https://github.com/kirnap/KocUniversity).
 
 
 ### Prerequisites
-We use text file tokenized by [UDPipe](http://ufal.mff.cuni.cz/udpipe), please make sure that you have installed the it from their official [repository](https://github.com/ufal/udpipe).
-Entire software runs on Julia, so you need to install it from their official [download](https://julialang.org/downloads/) page. After successfully downloading Julia run the following command from terminal to install package dependencies.
+We use text files tokenized by [UDPipe](http://ufal.mff.cuni.cz/udpipe), please make sure that you have installed it from their official [repository](https://github.com/ufal/udpipe).
 
+Our entire software runs on [Julia](https://julialang.org/), so it should be installed on your system as well. Julia can be installed from their [official download page](https://julialang.org/downloads/). After the requirements are met, follow the installation instructions below. 
 
 ### Installing
-Clone the repository to install the parser:
+Clone the repository to install the parser and dependencies:
 
 ```sh
-git clone git@github.com:kirnap/dependencyParser.git
+git clone https://github.com/kirnap/KocUniversity.git && cd KocUniversity
 julia installer.jl
 
 ```
-
-
 
 ### Code Structure
 Dependency parser related code is under [src](https://github.com/kirnap/dependencyParser/tree/master/src) folder and Language Model related code is under [lm](https://github.com/kirnap/dependencyParser/tree/master/lm).
 
 ### Running
-To be able to train parser on a specific language, first you need to have pre-trained language model so that you can generate *context* and *word* embeddings for that specific language. Here are the steps to train a language model:
+To be able to train parser on a specific language, first you need to have a pre-trained language model so that you can generate *context* and *word* embeddings for that language. Here are the steps to train a language model:
 
-#### BiLSTM based LM
+#### Bi-LSTM based Language Model
 
-Go to the directory where you download all the software and then to language model directory, please be noticed language model training takes approximately 24 hours on Tesla K80 GPU.
+Switch to language model directory: 
 ```sh
 cd lm
 ```
 
-If you don not raw version of .conllu formatted file run the following to obtain tokenized raw text:
+If you do not have raw version of `.conllu` formatted file, run the following to obtain tokenized raw text:
 ```sh
 udpipe --output=horizontal none --outfile texts/{}.txt *.conllu
 ```
 
-Create a vocabulary from a text file that is tokenized  by UDPipe (provided by Conll17 task organizers), please notice that output file contains word-frequency information in given textfile:
+Create a vocabulary file from the text file that is tokenized by UDPipe (provided by Conll17 task organizers), please notice that output file contains word-frequency information for the supplied text file:
 ```sh
-julia wordcount.jl --textfile 'your text file' --output 'output-vocabulary-file'
+julia wordcount.jl --textfile 'input text file' --output 'vocabulary-file'
 ```
-Lm trainer expects the vocabulary file that does not contain frequency information, thus one can use linux tools to get rid of frequency information:
+Language model training expects the vocabulary file not contain any frequency information, thus using linux tools remove that frequency information:
 ```sh
-awk '{$1="";print $0}' path/to/your-vocabulary-file
+awk '{$1="";print $0}' path/to/vocabulary-file > path/to/words-file
 ```
 
-To train lm you need to run the following command:
+Create a file that includes top N (e.g. 10000) words to be used during the training:
 ```sh
-julia lm_train.jl --trainfile 'your text file' --vocabfile 'your output vocabfile'  --wordsfile 'your input vocabfile' --savefile your_model.jld
+head -n10000 path/to/words-file > path/to/vocab-file
 ```
+
+To train the language model, you need to run the following command:
+```sh
+julia lm_train.jl --trainfile 'udpipe-output.txt' --vocabfile 'path/to/vocab-file'  --wordsfile 'path/to/words-file' --savefile model.jld
+```
+
+**Warning:** Please be aware that language model training takes approximately 24 hours on Tesla K80 GPU.
 
 #### Dependency parser
 Go to the parent directory and run the following command:
 ```sh
-julia main.jl --load '/path/to/pre-trained language model' --datafiles 'path/to/your_train_file.conllu' 'path/to/your_dev_file.conllu' --otrain 'number of epochs'
+julia main.jl --load '/path/to/pre-trained language model' --datafiles 'path/to/train_file.conllu' 'path/to/dev_file.conllu' --otrain 'number of epochs'
 ```
-For more detailed options you can run:
+For more detailed options, run:
 ```sh
 julia main.jl --help
 ```
 
-#### Additional help
-For more help, you are welcome to open an issuse, or directly contact to okirnap@ku.edu.tr
-
-
-
-
+## Additional help
+For more help, you are welcome to [open an issue](https://github.com/kirnap/KocUniversity/issues/new), or directly contact [okirnap@ku.edu.tr](mailto:okirnap@ku.edu.tr).
