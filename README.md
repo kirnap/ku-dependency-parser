@@ -20,7 +20,7 @@ julia installer.jl
 ```
 
 ### Code Structure
-Dependency parser related code is under [src](https://github.com/kirnap/ku-dependency-parser/tree/master/src) folder and Language Model related code is under [lm](https://github.com/kirnap/ku-dependency-parser/tree/master/lm).
+Dependency parser related code is under [parser](https://github.com/kirnap/ku-dependency-parser/tree/master/parser) folder and Language Model related code is under [lm](https://github.com/kirnap/ku-dependency-parser/tree/master/lm).
 
 ### Running
 To be able to train parser on a specific language, first you need to have a pre-trained language model so that you can generate *context* and *word* embeddings for that language. Here are the steps to train a language model:
