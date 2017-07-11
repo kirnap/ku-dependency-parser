@@ -168,94 +168,6 @@ end
 longest_word{T}(word_vocab::Dict{T, Int}) = findmax(map(length, keys(word_vocab)))[1]
 
 
-"""
-wids : batch of words in (outid, inid) -> outid is the softmax layer id, inid is the char level id,
-charlup only returns the input to char level lstms
-"""
-function charlup(wids::Array{Tuple{Int32,Int32},1}, i2w_all::Array{AbstractString, 1}, ch::Dict{Char, Int})
-    words = map(x->i2w_all[x[2]], wids)
-    critic = findmax(map(length, words))[1]
-
-    batchsize = length(words)
-    data = Array(Any, critic+2)
-    data[1] = fill!(zeros(Int32, batchsize), ch[SOW])
-    masks = Array(Any, critic+2)
-    masks[1] = ones(Int32, batchsize, 1)
-    for cursor=1:critic+1 # to pad EOW to the end of the word
-        d = Array(Int32, batchsize)
-        mask = ones(Float32, batchsize, 1)
-        @inbounds for i=1:batchsize
-            word = words[i]
-            if length(word) < critic
-                if length(word) >= cursor
-                    try
-                        d[i] = get(ch, word[cursor], ch[PAD]) #ch[word[cursor]], there may be unk characters
-                    catch
-                        d[i] = ch[PAD]
-                    end
-                elseif length(word)+1 == cursor
-                    d[i] = ch[EOW]
-                else
-                    d[i] = ch[PAD]
-                    mask[i] = 0
-                end
-            else
-                if cursor>critic
-                    d[i] = ch[EOW]
-                else
-                    try
-                        d[i] = get(ch, word[cursor], ch[PAD]) # unking operation
-                    catch
-                        d[i] = ch[PAD]
-                    end
-                end
-            end
-        end
-        data[cursor + 1] = d
-        masks[cursor + 1] = mask
-    end
-    return data, masks
-end
-
-
-function charlup2(wids::Array{Tuple{Int32,Int32},1}, i2w_all::Array{AbstractString, 1}, ch::Dict{Char, Int})
-    words = map(x->i2w_all[x[2]], wids)
-    pad_critic = findmax(map(length, words))[1] + 2 # + 2 for start and and end characters
-
-    batchsize = length(words)
-    data = Array(Any, pad_critic)
-    masks = Array(Any, pad_critic)
-
-    for cursor=1:pad_critic-1
-        d = Array(Int32, batchsize)
-        mask = ones(Float32, batchsize, 1)
-        @inbounds for i=1:batchsize
-            word = words[i]
-            tostart = pad_critic - (length(word)+2) + 1
-            if cursor == tostart
-                d[i] = ch[SOW]
-            elseif cursor > tostart
-                try
-                   ch_place = cursor - tostart # it shows which chracter of word in
-                   d[i] = ch[word[ch_place]]
-                catch
-                    d[i] = ch[PAD]
-                    mask[i] = 0.0
-                end
-            else
-                d[i] = ch[PAD]
-                mask[i] = 0.0
-            end
-        end
-        data[cursor] = d
-        masks[cursor] = mask
-    end
-    data[end] = fill!(zeros(Int32, batchsize), ch[EOW])
-    masks[end] = ones(Float32, batchsize, 1)
-    return data, masks
-end
-
-
 function ibuild_wordflup(i2c::Array{Char, 1}, data::Array{Any, 1}, kth::Int; verbose=false)
     word = Any[]
     for i=1:length(data)
@@ -343,3 +255,93 @@ function charlup3(wids::Array{Tuple{Int32,Int32},1}, i2w_all::Array{AbstractStri
     end
     return data, masks
 end
+
+
+
+## deprecated code
+# """
+# wids : batch of words in (outid, inid) -> outid is the softmax layer id, inid is the char level id,
+# charlup only returns the input to char level lstms
+# """
+# function charlup(wids::Array{Tuple{Int32,Int32},1}, i2w_all::Array{AbstractString, 1}, ch::Dict{Char, Int})
+#     words = map(x->i2w_all[x[2]], wids)
+#     critic = findmax(map(length, words))[1]
+
+#     batchsize = length(words)
+#     data = Array(Any, critic+2)
+#     data[1] = fill!(zeros(Int32, batchsize), ch[SOW])
+#     masks = Array(Any, critic+2)
+#     masks[1] = ones(Int32, batchsize, 1)
+#     for cursor=1:critic+1 # to pad EOW to the end of the word
+#         d = Array(Int32, batchsize)
+#         mask = ones(Float32, batchsize, 1)
+#         @inbounds for i=1:batchsize
+#             word = words[i]
+#             if length(word) < critic
+#                 if length(word) >= cursor
+#                     try
+#                         d[i] = get(ch, word[cursor], ch[PAD]) #ch[word[cursor]], there may be unk characters
+#                     catch
+#                         d[i] = ch[PAD]
+#                     end
+#                 elseif length(word)+1 == cursor
+#                     d[i] = ch[EOW]
+#                 else
+#                     d[i] = ch[PAD]
+#                     mask[i] = 0
+#                 end
+#             else
+#                 if cursor>critic
+#                     d[i] = ch[EOW]
+#                 else
+#                     try
+#                         d[i] = get(ch, word[cursor], ch[PAD]) # unking operation
+#                     catch
+#                         d[i] = ch[PAD]
+#                     end
+#                 end
+#             end
+#         end
+#         data[cursor + 1] = d
+#         masks[cursor + 1] = mask
+#     end
+#     return data, masks
+# end
+
+
+# function charlup2(wids::Array{Tuple{Int32,Int32},1}, i2w_all::Array{AbstractString, 1}, ch::Dict{Char, Int})
+#     words = map(x->i2w_all[x[2]], wids)
+#     pad_critic = findmax(map(length, words))[1] + 2 # + 2 for start and and end characters
+
+#     batchsize = length(words)
+#     data = Array(Any, pad_critic)
+#     masks = Array(Any, pad_critic)
+
+#     for cursor=1:pad_critic-1
+#         d = Array(Int32, batchsize)
+#         mask = ones(Float32, batchsize, 1)
+#         @inbounds for i=1:batchsize
+#             word = words[i]
+#             tostart = pad_critic - (length(word)+2) + 1
+#             if cursor == tostart
+#                 d[i] = ch[SOW]
+#             elseif cursor > tostart
+#                 try
+#                    ch_place = cursor - tostart # it shows which chracter of word in
+#                    d[i] = ch[word[ch_place]]
+#                 catch
+#                     d[i] = ch[PAD]
+#                     mask[i] = 0.0
+#                 end
+#             else
+#                 d[i] = ch[PAD]
+#                 mask[i] = 0.0
+#             end
+#         end
+#         data[cursor] = d
+#         masks[cursor] = mask
+#     end
+#     data[end] = fill!(zeros(Int32, batchsize), ch[EOW])
+#     masks[end] = ones(Float32, batchsize, 1)
+#     return data, masks
+# end
