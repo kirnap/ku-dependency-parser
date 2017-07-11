@@ -1,24 +1,91 @@
 # To test implementation of parser, and understand the working structure
 using JLD, Knet
-include("../src/types.jl")
-include("../src/preprocess.jl")
-include("../src/parser.jl")
-include("../src/helper.jl")
-include("../src/modelutils.jl")
+include("../parser/types.jl")
+include("../parser/preprocess.jl")
+include("../parser/parser.jl")
+include("../parser/helper.jl")
+include("../parser/modelutils.jl")
 include("set_testenv.jl")
 
 
-function test_parser()
+function test_parser(;mode=:random)
+    p1, s1 = get_parser_sentence()
+
+    
+
+end
+
+
+function compare_moves(p1, s1)
+    p_r = deepcopy(p1);
+    old_acs = nothing
+    for i in 1:500
+        p_r = deepcopy(p1)
+        
+        acs = done_randmoves(p_r, s1)
+        (acs == old_acs) && prinlnt("Previous and currrent actions are the same")
+        old_acs = acs
+        if p_r.head == s1.head
+            println("Correct sequence is catch")
+        end
+    end
+end
+
+
+# extract the gold moves from given parser
+function done_goldmoves(porig, s1)
+    actions = []
+    p1 = deepcopy(porig)
+    totmoves = 0
+    parserdone = false
+    while !parserdone
+        mcosts = movecosts(p1, p1.sentence.head, p1.sentence.deprel)
+        goldmove = indmin(mcosts)
+        if mcosts[goldmove] == typemax(Cost)
+            parserdone = true
+        else
+            push!(actions, goldmove)
+            move!(p1, goldmove)
+            totmoves += 1;
+        end
+    end
+    println("GoldMoves: Total moves $totmoves total words $(length(s1.word))")
+    return p1, actions
+end
+
+
+# Done random moves
+function done_randmoves(pin, s1)
+    p1 = deepcopy(pin)
+    ac_seq = []
+    totmoves = 0
+    mcosts = movecosts(p1, p1.sentence.head, p1.sentence.deprel)
+    n = length(mcosts)
+    while anyvalidmoves(p1)
+        mcosts = movecosts(p1, p1.sentence.head, p1.sentence.deprel)
+        validmoves = find(mcosts .< typemax(Cost))
+        m = validmoves[rand(1:length(validmoves))]
+        push!(ac_seq, m)
+        totmoves += 1;
+        move!(p1, m)
+    end
+    println("RandomMoves: Total moves $totmoves total words $(length(s1.word))")
+    return ac_seq
+end
+
+
+function get_parser_sentence()
     d = load(chmodel); vocab = create_vocab(d)
     corpora = []
-    for f in [real_tdata2, real_ddata2]
+    for f in [real_tdata3, real_ddata3]
         c = loadcorpus(f, vocab)
         push!(corpora, c)
     end
     sentence = corpora[1][4]
     p1 = ArcHybridR1(sentence)
-    return sentence, p1
+    return p1, sentence
 end
+
 
 
 # LEFT-ARC : (σ|wi,wj|β,A) ⇒ (σ,wj|β,A∪{(wj,r,wi)})
