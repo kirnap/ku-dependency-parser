@@ -2,7 +2,7 @@
 Dependency parser implementation used by [Koç University](https://www.ku.edu.tr) team in [Conll17 shared task](http://universaldependencies.org/conll17/). Our team ranked 7th as posted in the [results](http://universaldependencies.org/conll17/results.html).
 
 ## Getting started 
-This document will guide you to get a working copy of dependency parser software on your machine. The system has two parts; language modelling and dependency parsing. Most updated version of source can be found on [the official repo](https://github.com/kirnap/KocUniversity).
+This document will guide you to get a working copy of dependency parser software on your machine. The system has two parts; language modelling and dependency parsing. Most updated version of source can be found on [the official repo](https://github.com/kirnap/ku-dependency-parser).
 
 
 ### Prerequisites
@@ -14,13 +14,13 @@ Our entire software runs on [Julia](https://julialang.org/), so it should be ins
 Clone the repository to install the parser and dependencies:
 
 ```sh
-git clone https://github.com/kirnap/KocUniversity.git && cd KocUniversity
+git clone https://github.com/kirnap/ku-dependency-parser.git && cd ku-dependency-parser
 julia installer.jl
 
 ```
 
 ### Code Structure
-Dependency parser related code is under [src](https://github.com/kirnap/dependencyParser/tree/master/src) folder and Language Model related code is under [lm](https://github.com/kirnap/dependencyParser/tree/master/lm).
+Dependency parser related code is under [parser](https://github.com/kirnap/ku-dependency-parser/tree/master/parser) folder and Language Model related code is under [lm](https://github.com/kirnap/ku-dependency-parser/tree/master/lm).
 
 ### Running
 To be able to train parser on a specific language, first you need to have a pre-trained language model so that you can generate *context* and *word* embeddings for that language. Here are the steps to train a language model:
@@ -69,4 +69,4 @@ julia main.jl --help
 ```
 
 ## Additional help
-For more help, you are welcome to [open an issue](https://github.com/kirnap/KocUniversity/issues/new), or directly contact [okirnap@ku.edu.tr](mailto:okirnap@ku.edu.tr).
+For more help, you are welcome to [open an issue](https://github.com/kirnap/ku-dependency-parser/issues/new), or directly contact [okirnap@ku.edu.tr](mailto:okirnap@ku.edu.tr).
