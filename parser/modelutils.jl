@@ -40,12 +40,21 @@ function initx(d...; ftype=Float32)
 end
 
 
-# random normal initialziation
+# random normal initialization
 function initr(d...; ftype=Float32, GPUFEATS=false)
     if GPUFEATS && gpu() >=0
         KnetArray{ftype}(0.1*randn(d...))
     else
         Array{ftype}(0.1*randn(d...))
+    end
+end
+
+# zero initialization
+function initzeros(d...; ftype=Float32, GPUFEATS=false)
+    if GPUFEATS && gpu() >=0
+        KnetArray{ftype}(zeros(d...))
+    else
+        Array{ftype}(zeros(d...))
     end
 end
 
