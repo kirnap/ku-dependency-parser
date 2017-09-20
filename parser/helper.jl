@@ -236,7 +236,7 @@ initoptim(a::Associative,otype)=Dict(k=>initoptim(v,otype) for (k,v) in a)
 initoptim(a,otype)=map(x->initoptim(x,otype), a)
 
 macro msg(_x)
-    :(join(STDOUT,[Dates.format(now(),"HH:MM:SS"), $_x,'\n'],' '); flush(STDOUT))
+    :(join(STDOUT,[Dates.format(now(),"HH:MM:SS"), $(esc(_x)),'\n'],' '); flush(STDOUT))
 end
 
 date(x)=(join(STDOUT,[Dates.format(now(),"HH:MM:SS"), x,'\n'],' '); flush(STDOUT))
