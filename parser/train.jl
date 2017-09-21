@@ -59,10 +59,12 @@ function main(o)
     vocab = create_vocab(d)
     wmodel = makewmodel(d)
     corpora = []
+    lfunc = (VERSION >= v"0.6.0" ? loadcorpus_v6 : loadcorpus)
     for f in o[:datafiles]; @msg f
-        c = loadcorpus(f,vocab)
+        c = lfunc(f,vocab)
         push!(corpora,c)
     end
+    
     cc = vcat(corpora...)
     info("Context and word embeddings are being generated")
     ppl = fillvecs!(wmodel, cc, vocab)
@@ -117,9 +119,9 @@ function main(o)
                 save1(o[:bestfile])
             end
         end
-        if 5 < bestepoch < epoch - 5
-            break
-        end
+        #if 5 < bestepoch < epoch - 5
+        #    break
+        #end
     end
 
     # savemodel
@@ -161,7 +163,7 @@ function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=
     pscores = pscores0 = zeros(FTYPE, length(sentences))
     totalloss = stepcount = 0
     featmodel,mlpmodel = splitmodel(pmodel)
-
+    
     while length(beamends) > 0
         # features (vcat) are faster on cpu, mlp is faster on gpu
         fmatrix = features(parsers, feats, featmodel) # nfeat x nparser
@@ -365,26 +367,47 @@ function oracleloss(pmodel, sentences, vocab, arctype, feats; losses=nothing, pd
     totalloss = 0
     featmodel,mlpmodel = splitmodel(pmodel)
 
+    nsteps = 0
     while !all(parserdone)
         fmatrix = features(parsers, feats, featmodel)
+        #fmatrix = rand(FTYPE, 4664, length(parsers))
         if GPUFEATURES && gpu()>=0 #GPU
             @assert isa(getval(fmatrix),KnetArray{FTYPE,2})
         else #CPU
             @assert isa(getval(fmatrix),Array{FTYPE,2})
-            if gpu()>=0; fmatrix = KnetArray(fmatrix); end
+            if gpu()>=0
+                fmatrix = KnetArray(fmatrix)
+            end
         end
         scores = mlp(mlpmodel, fmatrix; pdrop=pdrop)
         logprob = logp(scores, 1)
         for (i,p) in enumerate(parsers)
-            if parserdone[i]; continue; end
+            if parserdone[i]
+                continue
+            end
             movecosts(p, p.sentence.head, p.sentence.deprel, mcosts)
             goldmove = indmin(mcosts)
+
+
             if mcosts[goldmove] == typemax(Cost)
                 parserdone[i] = true
                 p.sentence.parse = p
             else
                 totalloss -= logprob[goldmove,i]
-                move!(p, goldmove)
+                ##########
+                # This part is done to make dynamic-oracle possible
+                mmax = 0; smax = -Inf;
+                logprob1 = Array((getval(logprob)));
+                for m =1:size(logprob1, 1)
+                    if mcosts[m] < typemax(Cost) && logprob1[m, i] > smax
+                        smax = logprob1[m, i]; mmax = m;
+                    end
+                end
+                ## TODO : You have stopped right here
+                #mmax = rand(find(x ->x<typemax(Cost), mcosts))
+                move!(p, deepcopy(mmax))
+                #########
+                #move!(p, goldmove)
                 if losses != nothing
                     loss1 = -getval(logprob)[goldmove,i]
                     losses[1] += loss1
@@ -397,6 +420,7 @@ function oracleloss(pmodel, sentences, vocab, arctype, feats; losses=nothing, pd
                 end
             end
         end
+        nsteps +=1;
     end
     return totalloss / length(sentences)
 end
@@ -407,3 +431,10 @@ using AutoGrad
 import Base: sortperm, ind2sub
 @zerograd sortperm(a;o...)
 @zerograd ind2sub(a,i...)
+
+
+# static oracle approx max ~.81 in Eng-Par-TUT
+# Here is the general command to run the parser:
+# julia main.jl --load data/english_chmodel.jld --datafiles /mnt/ai/data/nlp/conll17/ud-treebanks-v2.0/UD_English-LinES/en_lines-ud-train.conllu /mnt/ai/data/nlp/conll17/ud-treebanks
+# For Hungarian:
+# julia main.jl --load /mnt/ai/data/nlp/conll17/competition/chmodel_converted/hungarian_chmodel.jld --datafiles /mnt/ai/data/nlp/conll17/ud-treebanks-v2.0/UD_Hungarian/hu-ud-train.conllu /mnt/ai/data/nlp/conll17/ud-treebanks-v2.0/UD_Hungarian/hu-ud-dev.conllu
