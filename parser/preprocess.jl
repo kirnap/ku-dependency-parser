@@ -37,6 +37,44 @@ function loadcorpus(file,v::Vocab)
     return corpus
 end
 
+
+function loadcorpus_v6(file,v::Vocab)
+    corpus = Any[]
+    s = Sentence(v)
+    for line in eachline(file)
+        if line == ""
+            push!(corpus, s)
+            s = Sentence(v)
+        elseif (m = match(r"^\d+\t(.+?)\t.+?\t(.+?)\t.+?\t.+?\t(.+?)\t(.+?)(:.+)?\t", line)) != nothing
+            #                id   word   lem  upos   xpos feat head   deprel
+            word = m.captures[1]
+            push!(s.word, word)
+            
+            postag = get(v.postags, m.captures[2], 0)
+            if postag==0
+                Base.warn_once("Unknown postags")
+            end
+            push!(s.postag, postag)
+            
+            head = tryparse(Position, m.captures[3])
+            head = isnull(head) ? -1 : head.value
+            if head==-1
+                Base.warn_once("Unknown heads")
+            end
+            push!(s.head, head)
+
+            deprel = get(v.deprels, m.captures[4], 0)
+            if deprel==0
+                Base.warn_once("Unknown deprels")
+            end
+            push!(s.deprel, deprel)
+        end
+    end
+    return corpus
+end
+
+
+
 # To create vocabulary from pre-trained lstm model
 function create_vocab(d)
     Vocab(d["char_vocab"],
@@ -154,4 +192,30 @@ function goldbatch(sentences, maxlen, wdict, unkwid, pad=unkwid)
         end
     end
     return data, mask
+end
+
+
+# minibatching for lstm decision module implementation
+function lstm_batch(corpus, batchsize; maxlen=64)
+    # for now ignore sentences longer than 64 sentences
+    metadata = Dict{Int, Array{Any,1}}()
+    for item in corpus
+        if haskey(metadata, length(item)) 
+            push!(metadata[length(item)], item)
+        elseif length(item) <= maxlen
+            metadata[length(item)] = [ item ]
+        else
+            continue
+        end
+    end
+    data = []
+    for (k,v) in metadata
+        while !isempty(v)
+            endv  =  (length(v) >= batchsize ? batchsize : length(v))
+            push!(data, v[1:endv])
+            deleteat!(v, 1:endv)
+        end
+        delete!(metadata, k)
+    end
+    return shuffle!(data)
 end
