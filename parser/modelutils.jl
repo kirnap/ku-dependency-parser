@@ -78,11 +78,17 @@ function makepmodel1(d; GPUFEATS=false)
 end
 
 
-function makepmodel2(o, s; ftype=Float32)
+function makepmodel2(o, s; ftype=Float32, intype=:normal)
     model = Any[]
     dpostag, ddeprel, dcount = o[:embed]
     for (k,n,d) in ((:postag,17,dpostag),(:deprel,37,ddeprel),(:lcount,10,dcount),(:rcount,10,dcount),(:distance,10,dcount))
-        push!(model, [ initr(d) for i=1:n ])
+        if intype == :normal
+            push!(model, [ initr(d) for i=1:n ])
+            @msg "Random normal initialization"
+        else
+            push!(model, [ initzeros(d) for i=1:n ])
+            @msg "Zero initialization"
+        end
     end
     p = o[:arctype](s)
     f = features([p], o[:feats], model)
@@ -99,8 +105,46 @@ function makepmodel2(o, s; ftype=Float32)
 end
 
 
+function makepmodel_lstm(o, s; ftype=Float32, intype=:normal)
+    model = Any[]
+    dpostag, ddeprel, dcount = o[:embed]
+    for (k,n,d) in ((:postag,17,dpostag),(:deprel,37,ddeprel),(:lcount,10,dcount),(:rcount,10,dcount),(:distance,10,dcount))
+        if intype == :normal
+            push!(model, [ initr(d) for i=1:n ])
+            @msg "Random normal initialization"
+        else
+            push!(model, [ initzeros(d) for i=1:n ])
+            @msg "Zero initialization"
+        end
+    end
+    p = o[:arctype](s)
+    f = features([p], o[:feats], model)
+    lstmdims = (length(f), o[:hidden]..., p.nmove)
+    info("lstmdims=$lstmdims")
+    parser = Any[]
+
+    # For now we have a single layer lstm
+    # TODO: fix it for multi-layer implementation
+    push!(parser, initx(4lstmdims[2], o[:hidden][1]+lstmdims[1]))
+    bias = zeros(FTYPE, 4lstmdims[2], 1)
+    bias[1:o[:hidden][1]] = 1 # forget gate bias
+    if gpu() >= 0
+        bias = convert(KnetArray, bias)
+    end
+    push!(parser, bias)
+    
+    # output layer implementation
+    push!(parser, initx(lstmdims[end], o[:hidden][end])) # weight
+    bfin = (gpu()>=0 ? KnetArray(zeros(FTYPE, lstmdims[end], 1)) : zeros(FTYPE, lstmdims[end], 1))
+    push!(parser, bfin) # bias
+    push!(model,parser)
+    optim = initoptim(model,o[:optimization])
+    return model,optim
+end
+
+
 # Parser model initialization, and parameter selection
-makepmodel(d, o, s) = (haskey(d, "parserv") ? makepmodel1(d) : makepmodel2(o, s))
+makepmodel(d, o, s) = (haskey(d, "parserv") ? makepmodel1(d) : makepmodel2(o, s; intype=:normal))
 postagv(m)=m[1]; deprelv(m)=m[2]; lcountv(m)=m[3]; rcountv(m)=m[4]; distancev(m)=m[5]; parserv(m)=m[6]
 
 
@@ -111,6 +155,14 @@ function mlp(w,x; pdrop=(0,0))
         x = dropout(x,pdrop[2])
     end
     return w[end-1]*x .+ w[end]
+end
+
+
+function lstm_parser(lmodel, states, input; mask=nothing, pdrop = (0,0))
+    input = dropout(input, pdrop[1])
+    states[1], states[2]  = lstm(lmodel[1], lmodel[2], states[1], states[2], input)
+    x = dropout(states[1], pdrop[2])
+    return lmodel[3] * x .+ lmodel[4]
 end
 
 
