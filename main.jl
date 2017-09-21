@@ -1,11 +1,11 @@
 using JLD, Knet, ArgParse
-include("src/types.jl")
-include("src/preprocess.jl")
-include("src/parser.jl")
-include("src/helper.jl")
-include("src/modelutils.jl")
-include("src/features.jl")
-include("src/train.jl")
+include("parser/types.jl")
+include("parser/preprocess.jl")
+include("parser/parser.jl")
+include("parser/helper.jl")
+include("parser/modelutils.jl")
+include("parser/features.jl")
+include("parser/train.jl")
 
 
 function train(args=ARGS)
