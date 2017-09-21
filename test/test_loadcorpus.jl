@@ -24,7 +24,7 @@ function test_loadcorpus()
     vocab = create_vocab(d)
     corpus = loadcorpus(real_tdata, vocab)
 
-    orig_corpora, orig_vocab = main("--load $chmodel --datafiles $real_tdata $real_tdata --otrain 0")
+    orig_corpora, orig_vocab = main("--load $chmodel --datafiles $real_tdata $real_ddata --otrain 0")
     orig_corpus = orig_corpora[1]
 
     for item in fieldnames(orig_vocab)
