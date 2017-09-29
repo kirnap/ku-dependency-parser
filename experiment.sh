@@ -1,0 +1,1 @@
+julia6 --depwarn no main_v6.jl --load data/english_chmodel.jld --datafiles /ai/data/nlp/conll17/ud-treebanks-v2.0/UD_English-LinES/en_lines-ud-train.conllu /ai/data/nlp/conll17/ud-treebanks-v2.0/UD_English-LinES/en_lines-ud-dev.conllu --otrain 30 --dropout 0.5 0.7 --seed 1
