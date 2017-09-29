@@ -394,19 +394,6 @@ function oracleloss(pmodel, sentences, vocab, arctype, feats; losses=nothing, pd
                 p.sentence.parse = p
             else
                 totalloss -= logprob[goldmove,i]
-                ##########
-                # This part is done to make dynamic-oracle possible
-                # mmax = 0; smax = -Inf;
-                # logprob1 = Array((getval(logprob)));
-                # for m =1:size(logprob1, 1)
-                #     if mcosts[m] < typemax(Cost) && logprob1[m, i] > smax
-                #         smax = logprob1[m, i]; mmax = m;
-                #     end
-                # end
-                ## TODO : You have stopped right here
-                #mmax = rand(find(x ->x<typemax(Cost), mcosts))
-                #move!(p, deepcopy(mmax))
-                #########
                 move!(p, goldmove)
                 if losses != nothing
                     loss1 = -getval(logprob)[goldmove,i]
