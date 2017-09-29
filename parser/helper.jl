@@ -1,4 +1,4 @@
-# General helper functions
+# General helper functions, This implementation is used in julia5
 
 # when fmatrix has mixed Rec and KnetArray, vcat does not do the right thing!  AutoGrad only looks at the first 2-3 elements!
 #TODO: temp solution to AutoGrad vcat issue:

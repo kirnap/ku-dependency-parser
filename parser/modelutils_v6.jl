@@ -1,4 +1,4 @@
-# Implementation of common model utilies
+# Implementation of common model utilies, for julia6 Knet 0.8.4
 
 # character based model utilities
 cembed(m) = m[1]

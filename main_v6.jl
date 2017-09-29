@@ -2,9 +2,9 @@ using JLD, Knet, ArgParse
 include("parser/types.jl")
 include("parser/preprocess.jl")
 include("parser/parser.jl")
-include("parser/helper.jl")
+include("parser/helper_v6.jl")
 include("parser/modelutils_v6.jl")
-include("parser/features.jl")
+include("parser/features_v6.jl")
 include("parser/train.jl")
 
 
