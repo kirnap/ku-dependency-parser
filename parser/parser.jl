@@ -94,6 +94,9 @@ function movecosts(p::Parser, head::Pvec, deprel::Dvec,
     (length(deprel) == p.nword) ||error("Bad deprel")
     (length(cost) == p.nmove)   ||error("Bad cost")
     fill!(cost, typemax(Cost))
+    ######### DEBUG use that to count movecosts calls #########
+    #haskey(callcnt, :movecosts) ? callcnt[:movecosts] += 1 : callcnt[:movecosts] = 1
+    ##################
     n0 = p.wptr
     s0 = (p.sptr > 0 ? p.stack[p.sptr] : 0)
     s1 = (p.sptr > 1 ? p.stack[p.sptr-1] : 0)
