@@ -17,7 +17,7 @@ MINSENT=2                       # skip shorter sentences during training
 
 
 function main(o)
-    global callcnt = Knet.callcnt
+    global callcnt = Dict{Symbol, Int}(:epoch=>1)#Knet.callcnt, TODO: open that for debug
     println("opts=",[(k,v) for (k,v) in o]...)
 
     @msg o[:loadfile]
@@ -146,6 +146,7 @@ function main(o)
                     feats=o[:feats],
                     batchsize=o[:batchsize],
                     pdrop=o[:dropout])
+        Profile.print()
         currlas = report("oracle$epoch",1)
 
         ######### DEBUG #########
@@ -394,29 +395,51 @@ function splitmodel(pmodel)
     return (featmodel,mlpmodel)
 end
 
+###################### DEBUG ##################################
+function faketrain(model, sentences, vocab, arctype, feats; losses=nothing, pdrop=nothing)
+    grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+    update!(model, grads, optim)
+end
+##############################################################
 
-function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, batchsize=16, maxiter=typemax(Int), pdrop=(0,0))
-    sentbatches = minibatch(corpus,batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=false)
+function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, batchsize=16, maxiter=typemax(Int), pdrop=(0,0), toprof=true)
+    sentbatches = minibatch(corpus, batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=false)
     nsent = sum(map(length,sentbatches)); nsent0 = length(corpus)
     nword = sum(map(length,vcat(sentbatches...))); nword0 = sum(map(length,corpus))
     @msg("nsent=$nsent/$nsent0 nword=$nword/$nword0")
     nwords = StopWatch()
     losses = Any[0,0,0]
     niter = 0
-    @time for sentences in sentbatches
-        grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
-        ######### DEBUG use that to count oraclegrad counts #########
-        #haskey(callcnt, :oraclegrad) ? callcnt[:oraclegrad] += 1 : callcnt[:oraclegrad] = 1
-        #########
-        update!(model, grads, optim)
-        nw = sum(map(length,sentences))
-        if (speed = inc(nwords, nw)) != nothing
-            date("$(nwords.ncurr) words $(round(Int,speed)) wps $(losses[3]) avgloss")
-            #free_KnetArray()
+    
+    if toprof
+        info("I am here")
+        for i in 1:1
+            sentences = sentbatches[i]
+            @profile faketrain(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+            nw = sum(map(length,sentences))
+            if (speed = inc(nwords, nw)) != nothing
+                date("$(nwords.ncurr) words $(round(Int,speed)) wps $(losses[3]) avgloss")
+                #free_KnetArray()
+            end
+            if (niter+=1) >= maxiter; break; end
+            println()
         end
-        if (niter+=1) >= maxiter; break; end
+    else
+        @time for sentences in sentbatches
+            grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+            ######### DEBUG use that to count oraclegrad counts #########
+            #haskey(callcnt, :oraclegrad) ? callcnt[:oraclegrad] += 1 : callcnt[:oraclegrad] = 1
+            #########
+            update!(model, grads, optim)
+            nw = sum(map(length,sentences))
+            if (speed = inc(nwords, nw)) != nothing
+                date("$(nwords.ncurr) words $(round(Int,speed)) wps $(losses[3]) avgloss")
+                #free_KnetArray()
+            end
+            if (niter+=1) >= maxiter; break; end
+        end
+        println()
     end
-    println()
 end
 
 
