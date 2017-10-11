@@ -2,7 +2,8 @@
 
 # KnetArray cleaning
 function free_KnetArray()
-    gc(); Knet.knetgc(); gc()
+    nothing
+    #gc(); Knet.knetgc(); gc()
 end
 
 
@@ -66,7 +67,7 @@ function fillvecs!(wmodel, sentences, vocab; batchsize=128)
 
     sos,eos,unk = vocab.idict[vocab.sosword], vocab.idict[vocab.eosword], vocab.odict[vocab.unkword]
     result = zeros(2)
-    free_KnetArray()
+    #free_KnetArray()
     for i=1:batchsize:length(sents)
         j = min(i+batchsize-1, length(sents))
         isentij = view(sents, i:j)
