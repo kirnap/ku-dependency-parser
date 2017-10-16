@@ -130,15 +130,15 @@ function main(o)
     # end
 
 
-    for (k ,v) in callcnt
-        println("Before start : $k => $v")
-        callcnt[k] = 0
-    end
-    println()
+    # for (k ,v) in callcnt
+    #     println("Before start : $k => $v")
+    #     callcnt[k] = 0
+    # end
+    # println()
     ##################
     for epoch=1:o[:otrain]
         callcnt[:epoch] += 5  # change it in order to open logs
-        oracletrain(model=pmodel,
+        return oracletrain(model=pmodel,
                     optim=optim,
                     corpus=corpora[1],
                     vocab=vocab,
@@ -146,16 +146,15 @@ function main(o)
                     feats=o[:feats],
                     batchsize=o[:batchsize],
                     pdrop=o[:dropout])
-        Profile.print()
         currlas = report("oracle$epoch",1)
 
         ######### DEBUG #########
-        for (k ,v) in callcnt
-            println("$epoch : $k => $v")
-            (k == :epoch) && continue
-            callcnt[k] = 0
-        end
-        println()
+        # for (k ,v) in callcnt
+        #     println("$epoch : $k => $v")
+        #     (k == :epoch) && continue
+        #     callcnt[k] = 0
+        # end
+        # println()
         ###########################
 
 
@@ -396,9 +395,11 @@ function splitmodel(pmodel)
 end
 
 ###################### DEBUG ##################################
-function faketrain(model, sentences, vocab, arctype, feats; losses=nothing, pdrop=nothing)
-    grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
-    update!(model, grads, optim)
+function faketrain(model, sentbatches, vocab, arctype, feats, optim; losses=nothing, pdrop=nothing)
+    for sentences in sentbatches
+        grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+        update!(model, grads, optim)
+    end
 end
 ##############################################################
 
@@ -411,11 +412,12 @@ function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, 
     losses = Any[0,0,0]
     niter = 0
     
+    return (model, sentbatches, vocab, arctype, feats, optim, losses, pdrop)
     if toprof
         info("I am here")
         for i in 1:1
             sentences = sentbatches[i]
-            @profile faketrain(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+            faketrain(model, sentences, vocab, arctype, feats, optim; losses=losses, pdrop=pdrop)
             nw = sum(map(length,sentences))
             if (speed = inc(nwords, nw)) != nothing
                 date("$(nwords.ncurr) words $(round(Int,speed)) wps $(losses[3]) avgloss")
