@@ -395,10 +395,23 @@ function splitmodel(pmodel)
 end
 
 ###################### DEBUG ##################################
-function faketrain(model, sentbatches, vocab, arctype, feats, optim; losses=nothing, pdrop=nothing)
-    for sentences in sentbatches
-        grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
-        update!(model, grads, optim)
+function faketrain(model, sentbatches, vocab, arctype, feats, optim; losses=nothing, pdrop=nothing, maxiter=10, epoch=1)
+    counter = 1;nwords = StopWatch();
+    for epo in 1:epoch
+        for sentences in sentbatches
+            counter += 1
+            grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
+            update!(model, grads, optim)
+            
+            nw = sum(map(length,sentences))
+            if (speed = inc(nwords, nw)) != nothing
+                date("$(nwords.ncurr) words $(round(Int,speed)) wps $(losses[3]) avgloss")
+            end
+
+            # if counter > maxiter
+            #     break
+            # end
+        end
     end
 end
 ##############################################################
