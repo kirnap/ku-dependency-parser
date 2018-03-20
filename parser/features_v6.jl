@@ -116,6 +116,9 @@ end
 
 
 function features(parsers, feats, model)
+    ######### DEBUG use that to call features call count #########
+    #haskey(callcnt, :features) ? callcnt[:features] += 1 : callcnt[:features] = 1
+    #########
     pvecs,dvecs,lvecs,rvecs,xvecs = postagv(model),deprelv(model),lcountv(model),rcountv(model),distancev(model)
     pvec0,dvec0,lvec0,rvec0,xvec0 = zeros(pvecs[1]),zeros(dvecs[1]),zeros(lvecs[1]),zeros(rvecs[1]),zeros(xvecs[1])
     s = parsers[1].sentence
@@ -156,7 +159,7 @@ function features(parsers, feats, model)
             end
         end
     end
-    fmatrix = vcat(fmatrix...) # Here I applied the change for cat_r operations!(vcatn->vcat)
+    fmatrix = cat1d(fmatrix...) # Here I applied the change for cat_r operations!(vcatn->vcat)
     ncols = length(parsers)
     nrows = div(length(fmatrix), ncols)
     reshape(fmatrix, nrows, ncols)

@@ -43,6 +43,9 @@ function loadcorpus_v6(file,v::Vocab)
     s = Sentence(v)
     for line in eachline(file)
         if line == ""
+            ######### Use that to experiment with the same sentence length #########
+            #(length(s) == 15) && (push!(corpus, s))
+            #########
             push!(corpus, s)
             s = Sentence(v)
         elseif (m = match(r"^\d+\t(.+?)\t.+?\t(.+?)\t.+?\t.+?\t(.+?)\t(.+?)(:.+)?\t", line)) != nothing
@@ -70,6 +73,9 @@ function loadcorpus_v6(file,v::Vocab)
             push!(s.deprel, deprel)
         end
     end
+    ######### To assert desired length taken #########
+    #@assert mapreduce(length, +, 0, corpus) / 15 == length(corpus)
+    #####################
     return corpus
 end
 
