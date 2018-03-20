@@ -5,10 +5,12 @@ include("parser/parser.jl")
 include("parser/helper_v6.jl")
 include("parser/modelutils_v6.jl")
 include("parser/features_v6.jl")
+include("int_test.jl")
 include("parser/train.jl")
 
 
 function train(args=ARGS)
+    p = Pkg.dir(); info(["=" for i in 1:15]..., p, ["=" for i in 1:15]...) # To indicate where to work on
     s = ArgParseSettings()
     s.description="Koc-University transition based parser"
     s.exc_handler=ArgParse.debug_handler
@@ -37,4 +39,5 @@ function train(args=ARGS)
 
     main(o)
 end
+
 !isinteractive() && train(ARGS)
