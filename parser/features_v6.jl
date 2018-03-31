@@ -162,7 +162,6 @@ function features(parsers, feats, model)
 
     fmatrix = cat1d(fmatrix...) # Here I applied the change for cat_r operations!(vcatn->vcat)
     #fmatrix = vcat(fmatrix...) # Here I applied the change for cat_r operations!(vcatn->vcat)
-
     ncols = length(parsers)
     nrows = div(length(fmatrix), ncols)
     reshape(fmatrix, nrows, ncols)
