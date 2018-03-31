@@ -17,7 +17,6 @@ MINSENT=2                       # skip shorter sentences during training
 LOGGING=1
 
 function main(o)
-    global callcnt = Knet.callcnt
     println("opts=",[(k,v) for (k,v) in o]...)
 
     @msg o[:loadfile]
@@ -104,42 +103,7 @@ function main(o)
     if o[:otrain]>0
         @msg :otrain
     end
-    #free_KnetArray()
-    ######### DEBUG #########
-    # filename = "before_start.txt"
-    # open(filename, "w") do f
-    #     for item in Knet.meminfo()
-    #         write(f, "$item \n")
-    #     end
-    # end
-
-    # l1 = []; for line in eachline("end_epoch_1"); push!(l1, eval(parse(line)));end;
-    # garbs = []
-    # for item in l1
-    #     for t in 1:item[2]
-    #         push!(garbs, KnetArray(rand(Float32, Int(item[1]/4), 1)))
-    #     end
-    # end
-    # for line in eachline("allocated_arr.txt")
-    #     push!(garbs, KnetArray(rand(Float32, parse(split(line)[2]), 1)))
-    # end
-    # empty!(garbs);gc();
-    # filename = "after_gc.txt"
-    # open(filename, "w") do f
-    #     for item in Knet.meminfo()
-    #         write(f, "$item \n")
-    #     end
-    # end
-
-
-    for (k ,v) in callcnt
-        println("Before start : $k => $v")
-        callcnt[k] = 0
-    end
-    println()
-    ##################
     for epoch=1:o[:otrain]
-        callcnt[:epoch] += 5  # change it in order to open logs
         oracletrain(model=pmodel,
                     optim=optim,
                     corpus=corpora[1],
@@ -149,15 +113,6 @@ function main(o)
                     batchsize=o[:batchsize],
                     pdrop=o[:dropout])
         currlas = report("oracle$epoch",1)
-
-        ######### DEBUG #########
-        for (k ,v) in callcnt
-            println("$epoch : $k => $v")
-            (k == :epoch) && continue
-            callcnt[k] = 0
-        end
-        println()
-        ###########################
 
 
         if currlas > bestlas 
@@ -170,16 +125,6 @@ function main(o)
         #if 5 < bestepoch < epoch - 5
         #    break
         #end
-        ######### DEBUG #########
-        # if epoch == 1
-        #     filename = "end2_epoch_$epoch"
-        #     open(filename, "w") do f
-        #         for item in Knet.meminfo()
-        #             write(f, "$item \n")
-        #         end
-        #     end
-        # end
-        ###########################
     end
     
     #beamtrain
@@ -194,20 +139,6 @@ function main(o)
         end
     end
 
-    # omer defined beamtrain
-    @msg :omerbeamtrain
-    for epoch=1:30
-        omerbeamtrain(optim, pmodel, o[:feats], corpora[1], o[:arctype], 16) # beamwidth 16
-        las_val = beamtest(model=pmodel,
-                                  corpus=corpora[2],
-                                  vocab=vocab,
-                                  arctype=o[:arctype],
-                                  feats=o[:feats],
-                                  beamsize=1,
-                           batchsize=o[:batchsize])
-        println("las vall test $(las_val)"); flush(STDOUT);
-    end
-  
     # savemodel
     if o[:savefile] != nothing
         save1(o[:savefile])
@@ -457,7 +388,7 @@ end
 
 
 function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, batchsize=16, maxiter=typemax(Int), pdrop=(0,0))
-    sentbatches = minibatch(corpus,batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=false)
+    sentbatches = minibatch(corpus,batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=true) # shuffling imp. acc
     nsent = sum(map(length,sentbatches)); nsent0 = length(corpus)
     nword = sum(map(length,vcat(sentbatches...))); nword0 = sum(map(length,corpus))
     @msg("nsent=$nsent/$nsent0 nword=$nword/$nword0")
@@ -466,9 +397,6 @@ function oracletrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, 
     niter = 0
     @time for sentences in sentbatches
         grads = oraclegrad(model, sentences, vocab, arctype, feats; losses=losses, pdrop=pdrop)
-        ######### DEBUG use that to count oraclegrad counts #########
-        #haskey(callcnt, :oraclegrad) ? callcnt[:oraclegrad] += 1 : callcnt[:oraclegrad] = 1
-        #########
         update!(model, grads, optim)
         nw = sum(map(length,sentences))
         if (speed = inc(nwords, nw)) != nothing

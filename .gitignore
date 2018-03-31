@@ -12,6 +12,7 @@ noun_google_data
 .AppleDouble
 .LSOverride
 *.q
+*.txt
 
 # Icon must end with two \r
 Icon
