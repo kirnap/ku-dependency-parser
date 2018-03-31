@@ -220,6 +220,7 @@ function wordlstm(model, data, mask, embeddings)
     end
     
     wzero = fill!(similar(bias, H, B), 0)
+
     # forward lstm
     hidden = cell = wzero
     fhiddens = Array(Any, T-2)

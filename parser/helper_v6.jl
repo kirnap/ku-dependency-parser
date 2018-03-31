@@ -160,15 +160,16 @@ function writeconllu(sentences, inputfile, outputfile)
                 s = sentences[ns+1]
                 p = s.parse
             end
-            f = split(line, '\t')
+            f = split(line, '\t'); 
             nw += 1
-            if f[1] != "$nw"; error(); end
+            if f[1] != "$nw"; error(); end; 
             if f[2] != s.word[nw]; error(); end
             f[7] = string(p.head[nw])
             f[8] = deprels[p.deprel[nw]]
             print(out, join(f, "\t"))
+            print(out, "\n")
         else
-            if line == "\n"
+            if line == "" # "\n" in Julia 6 introduce that bug!
                 # info("$nl blank")
                 if s == nothing; error(); end
                 if nw != length(s.word); error(); end
@@ -178,6 +179,7 @@ function writeconllu(sentences, inputfile, outputfile)
                 # info("$nl non-word")
             end
             print(out, line)
+            print(out, "\n")
         end
     end
     if ns != length(sentences); error(); end

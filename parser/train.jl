@@ -14,7 +14,7 @@ GPUFEATURES=false               # Whether to compute gpu features or not
 MAXWORD=32                      # truncate long words at this length. length("counterintelligence")=19
 MAXSENT=64                      # skip longer sentences during training
 MINSENT=2                       # skip shorter sentences during training
-
+LOGGING=1
 
 function main(o)
     global callcnt = Knet.callcnt
@@ -36,10 +36,10 @@ function main(o)
 
     # assign transition based Parser type Abstraction from parser.jl
     o[:arctype] = (o[:arctype] == nothing ? get(d,"arctype",ArcHybridR1) : eval(parse(o[:arctype])))
-
-    if haskey(d,"arctype") && o[:arctype] != d["arctype"]
-        error("ArcType mismatch")
-    end
+    o[:arctype] = ArcHybridR1 # TODO:new JLD does not support our Sent type! 
+    # if haskey(d,"arctype") && o[:arctype] != d["arctype"]
+    #     error("ArcType mismatch")
+    # end
     
     o[:feats] = (o[:feats] == nothing ? get(d,"feats",FEATS) : eval(parse(o[:feats])))
     if haskey(d,"feats") && o[:feats] != d["feats"]
@@ -71,7 +71,8 @@ function main(o)
     ppl = fillvecs!(wmodel, cc, vocab)
     unk = unkrate(cc)
     @msg "perplexity=$ppl unkrate=$(unk[1]/unk[2])"
-
+    corpus_length = length(corpora)
+    @msg "$corpus_length"
     @msg :initmodel
     (pmodel,optim) = makepmodel(d,o,corpora[1][1])
     # add-hoc savefile function
@@ -80,6 +81,7 @@ function main(o)
 
     # report function that is going to be used during training
     function report(epoch,beamsize=o[:beamsize])
+        beamsize = 1 # make for debug purposes
         las_vals = zeros(length(corpora))
         for i=1:length(corpora)
             if o[:report][i] != 0 || (o[:bestfile] != nothing && i==length(corpora))
@@ -179,7 +181,33 @@ function main(o)
         # end
         ###########################
     end
+    
+    #beamtrain
+    if o[:btrain]>0; @msg :btrain; end
+    gc(); Knet.knetgc(); gc()
+    for epoch=1:o[:btrain]
+        beamtrain(model=pmodel,optim=optim,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],pdrop=o[:dropout],batchsize=1) # larger batchsizes slow down beamtrain considerably
+        currlas = report("beam$epoch")
+        if currlas > bestlas && o[:bestfile] != nothing
+            bestlas = currlas
+            save1(o[:bestfile])
+        end
+    end
 
+    # omer defined beamtrain
+    @msg :omerbeamtrain
+    for epoch=1:30
+        omerbeamtrain(optim, pmodel, o[:feats], corpora[1], o[:arctype], 16) # beamwidth 16
+        las_val = beamtest(model=pmodel,
+                                  corpus=corpora[2],
+                                  vocab=vocab,
+                                  arctype=o[:arctype],
+                                  feats=o[:feats],
+                                  beamsize=1,
+                           batchsize=o[:batchsize])
+        println("las vall test $(las_val)"); flush(STDOUT);
+    end
+  
     # savemodel
     if o[:savefile] != nothing
         save1(o[:savefile])
@@ -200,6 +228,38 @@ function main(o)
 end
 
 
+function beamtrain(;model=_model, optim=_optim, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, beamsize=4, pdrop=(0,0), batchsize=1) # larger batchsizes slow down beamtrain considerably
+    # global grads, optim, sentbatches, sentences
+    # srand(1)
+    sentbatches = minibatch(corpus,batchsize; maxlen=MAXSENT, minlen=MINSENT, shuf=true)
+    if LOGGING > 0
+        nsent = sum(map(length,sentbatches)); nsent0 = length(corpus)
+        nword = sum(map(length,vcat(sentbatches...))); nword0 = sum(map(length,corpus))
+        @msg("nsent=$nsent/$nsent0 nword=$nword/$nword0")
+    end
+    nwords = StopWatch()
+    nsteps = Any[0,0]
+    # niter = 0
+    for sentences in sentbatches
+        #DBG gc(); Knet.knetgc(); gc()
+        #DBG @sho niter+=1
+        #DBG @sho length(sentences[1])
+        #DBG ploss = beamloss(model, sentences, vocab, arctype, feats, beamsize)
+
+        grads = beamgrad(model, sentences, vocab, arctype, feats, beamsize; earlystop=true, steps=nsteps, pdrop=pdrop) # Here you may change earlystop(true-false)
+        update!(model, grads, optim)
+        nw = sum(map(length,sentences))
+        speed = inc(nwords, nw)
+        if speed != nothing
+            date("$(nwords.ncurr) words $(round(Int,speed)) wps $(round(Int,100*nsteps[1]/nsteps[2]))% steps")
+            nsteps[:] = 0
+            gc(); Knet.knetgc(); gc()
+        end
+    end
+    println()
+end
+
+
 function beamtest(;model=_model, corpus=_corpus, vocab=_vocab, arctype=ArcHybridR1, feats=FEATS, beamsize=4, batchsize=128) # large batchsize does not slow down beamtest
     for s in corpus
         s.parse = nothing
@@ -216,7 +276,7 @@ end
 function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=true, steps=nothing, pdrop=(0,0))
     parsers = parsers0 = map(arctype, sentences)
     beamends = beamends0 = collect(1:length(parsers)) # marks end column of each beam, initially one parser per beam
-    pcosts  = pcosts0  = zeros(Int, length(sentences))
+    pcosts = pcosts0  = zeros(Int, length(sentences))
     pscores = pscores0 = zeros(FTYPE, length(sentences))
     totalloss = stepcount = 0
     featmodel,mlpmodel = splitmodel(pmodel)
@@ -230,7 +290,7 @@ function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=
             @assert isa(getval(fmatrix),Array{FTYPE,2})
             if gpu()>=0; fmatrix = KnetArray(fmatrix); end
         end
-        cscores = Array(mlp(mlpmodel, fmatrix; pdrop=pdrop)) # candidate scores: nmove x nparser
+        cscores = Array(mlp(mlpmodel, fmatrix; pdrop=pdrop)) # candidate scores: nmove x nparser, why do we need array?
         cscores = cscores .+ pscores' # candidate cumulative scores
         parsers,pscores,pcosts,beamends,loss = nextbeam(parsers, cscores, pcosts, beamends, beamsize; earlystop=earlystop)
         totalloss += loss
@@ -244,12 +304,13 @@ function beamloss(pmodel, sentences, vocab, arctype, feats, beamsize; earlystop=
     return totalloss / length(sentences)
 end
 
+beamgrad = grad(beamloss)
 
 function nextbeam(parsers, mscores, pcosts, beamends, beamsize; earlystop=true)
     n = beamsize * length(beamends) + 1
-    newparsers, newscores, newcosts, newbeamends, loss = Array(Any,n),Array(Int,n),Array(Int,n),Int[],0.0
+    newparsers, newscores, newcosts, newbeamends, loss = Array{Any}(n), Array{Any}(n), Array{Any}(n), Int[], 0.0 #Array(Any,n),Array(Int,n),Array(Int,n),Int[],0.0 :Array(Any, n) is deprecated!
     nmoves,nparsers = size(mscores)                     # mscores[m,p] is the score of move m for parser p
-    mcosts = Array(Any, nparsers)                       # mcosts[p][m] will be the cost vector for parser[p],move[m] if needed
+    mcosts = Array{Any}(nparsers) #Array(Any, nparsers) # mcosts[p][m] will be the cost vector for parser[p],move[m] if needed
     n = p0 = 0
     for p1 in beamends                                  # parsers[p0+1:p1], mscores[:,p0+1:p1] is the current beam belonging to a common sentence
         s0,s1 = 1 + nmoves*p0, nmoves*p1                # mscores[s0:s1] are the linear indices for mscores[:,p0:p1]

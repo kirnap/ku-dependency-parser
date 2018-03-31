@@ -5,8 +5,8 @@ include("parser/parser.jl")
 include("parser/helper_v6.jl")
 include("parser/modelutils_v6.jl")
 include("parser/features_v6.jl")
-include("int_test.jl")
 include("parser/train.jl")
+
 
 
 function train(args=ARGS)
