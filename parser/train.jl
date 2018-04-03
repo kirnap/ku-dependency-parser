@@ -128,16 +128,16 @@ function main(o)
     end
     
     #beamtrain
-    if o[:btrain]>0; @msg :btrain; end
-    gc(); Knet.knetgc(); gc()
-    for epoch=1:o[:btrain]
-        beamtrain(model=pmodel,optim=optim,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],pdrop=o[:dropout],batchsize=1) # larger batchsizes slow down beamtrain considerably
-        currlas = report("beam$epoch")
-        if currlas > bestlas && o[:bestfile] != nothing
-            bestlas = currlas
-            save1(o[:bestfile])
-        end
-    end
+    # if o[:btrain]>0; @msg :btrain; end
+    # gc(); Knet.knetgc(); gc()
+    # for epoch=1:o[:btrain]
+    #     beamtrain(model=pmodel,optim=optim,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],pdrop=o[:dropout],batchsize=1) # larger batchsizes slow down beamtrain considerably
+    #     currlas = report("beam$epoch")
+    #     if currlas > bestlas && o[:bestfile] != nothing
+    #         bestlas = currlas
+    #         save1(o[:bestfile])
+    #     end
+    # end 
 
     # savemodel
     if o[:savefile] != nothing
@@ -146,14 +146,14 @@ function main(o)
 
 
     # output parse for corpora[1]
-    # if o[:output] != nothing    # TODO: parse all data files?
-    #     @msg o[:output]
-    #     if corpora[1][1].parse == nothing
-    #         @msg :parsing
-    #         beamtest(model=pmodel,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],batchsize=o[:batchsize])
-    #     end
-    #     writeconllu(corpora[1], o[:datafiles][1], o[:output])
-    # end
+    if o[:output] != nothing    # TODO: parse all data files?
+        @msg o[:output]
+        if corpora[1][1].parse == nothing
+            @msg :parsing
+            beamtest(model=pmodel,corpus=corpora[1],vocab=vocab,arctype=o[:arctype],feats=o[:feats],beamsize=o[:beamsize],batchsize=o[:batchsize])
+        end
+        writeconllu(corpora[1], o[:datafiles][1], o[:output])
+    end
     @msg :done
 
 end
