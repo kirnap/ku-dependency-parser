@@ -31,11 +31,17 @@ type Parser{T,V}
     deprel::Dvec          # nword vector of dependency labels
     sentence
     
-    function Parser(nword::Int,ndeps::Int)
+    function Parser{T, V}(nword::Int,ndeps::Int) where {T, V}
         init!(new(nword,ndeps,0,1,0,Pzeros(nword),Pzeros(nword),Droots(nword)))
     end
 
-    function Parser(s::Sentence)
+    function Parser{T, V}(s::Sentence) where {T, V}
+        nword = length(s.word)
+        ndeps = length(s.vocab.deprels)
+        init!(new(nword,ndeps,0,1,0,Pzeros(nword),Pzeros(nword),Droots(nword),s))
+    end
+
+    function Parser{T, V}(s::Sentence2) where {T, V}
         nword = length(s.word)
         ndeps = length(s.vocab.deprels)
         init!(new(nword,ndeps,0,1,0,Pzeros(nword),Pzeros(nword),Droots(nword),s))
@@ -146,8 +152,11 @@ end
 # We provide default fallback definitions for Parser based on the
 # ArcEager system from [N03,GN13].
 
-typealias ArcEager Parser{:ArcEager}
-typealias ArcEager13 Parser{:ArcEager,:GN13}
+const ArcEager   = Parser{:ArcEager}
+const ArcEager13 = Parser{:ArcEager,:GN13}
+
+#typealias ArcEager Parser{:ArcEager}
+#typealias ArcEager13 Parser{:ArcEager,:GN13}
 
 # In the arc-eager system (N03), a configuration c= (σ,β,A) consists of
 # a stack σ, a buffer β, and a set A of dependency arcs.
@@ -236,7 +245,8 @@ end
 ################################ ArcEagerR1 ##########################
 # ArcEagerR1 is a modification of ArcEager to ensure a single rootword
 
-typealias ArcEagerR1 Parser{:ArcEager,:R1}
+const ArcEagerR1 =  Parser{:ArcEager,:R1}
+#typealias ArcEagerR1 Parser{:ArcEager,:R1}
 
 # In GN13 the initial configuration has an empty stack, and a buffer
 # with special symbol ROOT to the right of all the words at w[n+1], i.e.
@@ -284,8 +294,11 @@ anyvalidmoves(p::ArcEagerR1)=((p.wptr <= p.nword) || ((p.sptr > 0) && (p.head[p.
 ################################ ArcHybrid ####################
 # ArcHybrid13 is the ArcHybrid system described in [KGS11,GN13]
 
-typealias ArcHybrid Parser{:ArcHybrid}
-typealias ArcHybrid13 Parser{:ArcHybrid,:GN13}
+const ArcHybrid   = Parser{:ArcHybrid}
+const ArcHybrid13 = Parser{:ArcHybrid,:GN13}
+
+#typealias ArcHybrid Parser{:ArcHybrid}
+#typealias ArcHybrid13 Parser{:ArcHybrid,:GN13}
 
 # In the arc-hybrid system (KGS11), a configuration c= (σ,β,A) consists
 # of a stack σ, a buffer β, and a set A of dependency arcs.
@@ -369,7 +382,8 @@ end
 ################################ ArcHybridR1 #############################
 # ArcHybridR1 is a modification of ArcHybrid to ensure a single rootword
 
-typealias ArcHybridR1 Parser{:ArcHybrid,:R1}
+const ArcHybridR1 = Parser{:ArcHybrid,:R1}
+#typealias ArcHybridR1 Parser{:ArcHybrid,:R1}
 
 # It turns out we can ensure a single rootword by simply not allowing
 # the reduce move (i.e. the ROOT-RIGHT move)
