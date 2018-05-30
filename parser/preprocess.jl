@@ -38,6 +38,7 @@ function loadcorpus(file,v::Vocab)
 end
 
 
+
 function loadcorpus_v6(file,v::Vocab)
     corpus = Any[]
     s = Sentence(v)
@@ -77,6 +78,91 @@ function loadcorpus_v6(file,v::Vocab)
     #@assert mapreduce(length, +, 0, corpus) / 15 == length(corpus)
     #####################
     return corpus
+end
+
+
+# Takes the features of a single word, parse them into 1-by-1 features
+# Return the (features, val) pair, i.e., ("Case", 2), ("Person", 1) etc., and modifies fdict
+function parse_feats!(fdict::Dict{String, Vector{String}}, feats; testmode=false)
+    getfun = (testmode ? get : get!) # to modify fdict
+
+    res = []
+    if  feats == "_" # underscore for no feats
+        return res
+    end
+    
+    farray = split(feats, "|")
+    for fs in farray
+        fkey, fval = split(fs, "=")
+        falls = getfun(fdict, fkey, Vector{String}())
+        idx = findfirst(x->x==fval, falls)
+        if idx == 0 && !testmode
+            push!(falls, fval)
+            idx = length(falls)
+        end
+        push!(res, [fkey, idx])
+    end
+    return res
+end
+
+
+# Shit morphological features to right columns for embedding implementation in corpus
+function shift_cfeats!(corpus, fdict)
+    fnav = Dict{String, Int}() # Shifting values
+    counter = 1;for (k,v) in fdict; fnav[k]=counter; counter+=length(v);end;
+    f(x) = (x[2] += fnav[x[1]]-1) # helper to shift features
+    for sentence in corpus
+        for fgivens in sentence.feats; map(x->f(x), fgivens);end;
+    end
+end
+
+
+function loadcorpus_v62(file,v::Vocab, fdict=nothing, testmode=true)
+    corpus = Any[]
+
+    if fdict == nothing # create train dictionary
+        fdict = Dict{String, Vector{String}}()
+        testmode = false
+    end
+    s = Sentence2(v)
+    for line in eachline(file)
+        if line == ""
+            ######### Use that to experiment with the same sentence length #########
+            #(length(s) == 15) && (push!(corpus, s))
+            #########
+            push!(corpus, s)
+            s = Sentence2(v)
+        elseif (m = match(r"^\d+\t(.+?)\t.+?\t(.+?)\t.+?\t(.+?)\t(.+?)\t(.+?)(:.+)?\t", line)) != nothing
+            #                id   word   lem  upos   xpos feat head   deprel
+            word = m.captures[1]
+            push!(s.word, word)
+            
+            postag = get(v.postags, m.captures[2], 0)
+            if postag==0
+                Base.warn_once("Unknown postags")
+            end
+            push!(s.postag, postag)
+
+            # morphological features
+            wordfeats = m.captures[3]
+            res = parse_feats!(fdict, wordfeats, mode=mode)
+            push!(s.feats, res)
+            
+            head = tryparse(Position, m.captures[4])
+            head = isnull(head) ? -1 : head.value
+            if head==-1
+                Base.warn_once("Unknown heads")
+            end
+            push!(s.head, head)
+
+            deprel = get(v.deprels, m.captures[5], 0)
+            if deprel==0
+                Base.warn_once("Unknown deprels")
+            end
+            push!(s.deprel, deprel)
+        end
+    end
+    return corpus, fdict
 end
 
 
